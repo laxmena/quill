@@ -242,6 +242,23 @@
       font-style: italic;
       text-align: center;
     }
+
+    /* ─── Screen preview: A4 page floating on a neutral background ──────── */
+    @media screen {
+      html {
+        background: #e8e4dc;
+        padding: 40px 20px;
+      }
+
+      body {
+        max-width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        padding: 28mm 25mm 30mm 30mm;
+        background: #fff;
+        box-shadow: 0 4px 32px rgba(0, 0, 0, 0.18);
+      }
+    }
   </style>
 </head>
 <body>

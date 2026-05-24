@@ -132,17 +132,21 @@ async def synthesize_and_save(
     period_end: date,
     inbox_dir: Path = INBOX_DIR,
     biographies_dir: Path = BIOGRAPHIES_DIR,
-) -> Path:
-    """Collect → synthesize → save. Returns the path of the saved HTML file."""
+) -> tuple[Path, int]:
+    """Collect → synthesize → save inner HTML.
+
+    Returns (content_html_path, entry_count). The content file is an
+    intermediate artifact; render.py injects it into the full template.
+    """
     biographies_dir.mkdir(exist_ok=True)
     entries = await collect_entries(since=period_start, until=period_end,
                                     inbox_dir=inbox_dir)
     html = await synthesize(entries, period_start, period_end)
-    out_path = biographies_dir / f"{period_end.isoformat()}.html"
+    out_path = biographies_dir / f"{period_end.isoformat()}_content.html"
     async with aiofiles.open(out_path, "w", encoding="utf-8") as f:
         await f.write(html)
     logger.info("saved → %s", out_path.name)
-    return out_path
+    return out_path, len(entries)
 
 
 if __name__ == "__main__":
