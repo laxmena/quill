@@ -103,11 +103,12 @@ async def render_from_file(
     period_start: date,
     period_end: date,
     entry_count: int = 0,
+    biographies_dir: Path = BIOGRAPHIES_DIR,
 ) -> tuple[Path, Path]:
     """Load inner HTML from a *_content.html file and render."""
     async with aiofiles.open(content_path, encoding="utf-8") as f:
         content_html = await f.read()
-    return await render(content_html, period_start, period_end, entry_count)
+    return await render(content_html, period_start, period_end, entry_count, biographies_dir)
 
 
 if __name__ == "__main__":
