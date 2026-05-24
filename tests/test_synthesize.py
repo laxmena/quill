@@ -1,6 +1,9 @@
 import pytest
 from datetime import date, datetime
-from synthesize import Entry, collect_entries, synthesize, synthesize_and_save
+from synthesize import (
+    Entry, collect_entries, synthesize, synthesize_and_save,
+    _build_prompt, _load_prior_chapter,
+)
 
 
 # ── collect_entries ────────────────────────────────────────────────────────────
@@ -93,3 +96,61 @@ async def test_synthesize_and_save_returns_entry_count(tmp_inbox, tmp_biographie
         start, end, inbox_dir=tmp_inbox, biographies_dir=tmp_biographies
     )
     assert count == 2
+
+
+# ── continuity ─────────────────────────────────────────────────────────────────
+
+def test_build_prompt_includes_prior_text():
+    entries = [Entry(datetime(2024, 5, 10, 9, 0), "note", "A walk.")]
+    prompt = _build_prompt(entries, date(2024, 5, 1), date(2024, 5, 14),
+                           prior_text="The winter had been long.")
+    assert "Previous chapter" in prompt
+    assert "The winter had been long." in prompt
+    assert "A walk." in prompt
+
+
+def test_build_prompt_omits_prior_section_when_none():
+    entries = [Entry(datetime(2024, 5, 10, 9, 0), "note", "A walk.")]
+    prompt = _build_prompt(entries, date(2024, 5, 1), date(2024, 5, 14))
+    assert "Previous chapter" not in prompt
+
+
+async def test_load_prior_chapter_returns_none_when_empty(tmp_biographies):
+    result = await _load_prior_chapter(tmp_biographies)
+    assert result is None
+
+
+async def test_load_prior_chapter_returns_most_recent(tmp_biographies):
+    (tmp_biographies / "2024-04-30_content.html").write_text("<p>April</p>")
+    (tmp_biographies / "2024-05-14_content.html").write_text("<p>May</p>")
+    result = await _load_prior_chapter(tmp_biographies)
+    assert result == "<p>May</p>"
+
+
+async def test_load_prior_chapter_excludes_current_end(tmp_biographies):
+    (tmp_biographies / "2024-04-30_content.html").write_text("<p>April</p>")
+    (tmp_biographies / "2024-05-14_content.html").write_text("<p>May</p>")
+    result = await _load_prior_chapter(tmp_biographies, current_end=date(2024, 5, 14))
+    assert result == "<p>April</p>"
+
+
+async def test_synthesize_and_save_passes_prior_chapter(
+    tmp_inbox, tmp_biographies, period, monkeypatch
+):
+    start, end = period
+    (tmp_inbox / "2024-05-10_120000_note.txt").write_text("A fine day.")
+    (tmp_biographies / "2024-04-30_content.html").write_text("<p>April prose.</p>")
+
+    captured: list[str | None] = []
+
+    async def fake_synthesize(entries, ps, pe, prior_html=None):
+        captured.append(prior_html)
+        return "<p>mock output</p>"
+
+    monkeypatch.setattr("synthesize.synthesize", fake_synthesize)
+    await synthesize_and_save(start, end, inbox_dir=tmp_inbox,
+                              biographies_dir=tmp_biographies)
+
+    assert len(captured) == 1
+    assert captured[0] is not None
+    assert "April prose." in captured[0]

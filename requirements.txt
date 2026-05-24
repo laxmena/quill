@@ -7,4 +7,3 @@ rich==15.0.0
 python-dotenv==1.2.2
 aiofiles==25.1.0
 aiohttp==3.13.5
-Pillow==12.2.0
