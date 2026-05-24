@@ -133,6 +133,8 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 |---|---|---|---|
 | `TELEGRAM_BOT_TOKEN` | ✓ | — | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_URL` | — | — | Public HTTPS base URL for webhook mode. Leave blank for polling. |
+| `TELEGRAM_WEBHOOK_SECRET` | — | — | Random secret validated in `X-Telegram-Bot-Api-Secret-Token`. Set to a long random string when using webhook mode. |
+| `TELEGRAM_ALLOWED_CHAT_ID` | — | — | Your Telegram numeric chat ID. When set, all other users are silently ignored. Find yours via @userinfobot. |
 | `ANTHROPIC_API_KEY` | ✓* | — | API key for Claude (synthesis) |
 | `OPENAI_API_KEY` | ✓* | — | API key for Whisper + GPT-4o (transcription + captions) |
 | `GMAIL_ADDRESS` | ✓* | — | Gmail address used to send biographies |

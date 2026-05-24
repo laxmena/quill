@@ -20,10 +20,14 @@ from telegram.ext import (
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BOT_TOKEN   = os.getenv("TELEGRAM_BOT_TOKEN", "")
-WEBHOOK_URL = os.getenv("TELEGRAM_WEBHOOK_URL", "")
-USER_NAME   = os.getenv("USER_NAME", "Alex Rivera")
-PORT        = 8080
+BOT_TOKEN        = os.getenv("TELEGRAM_BOT_TOKEN", "")
+WEBHOOK_URL      = os.getenv("TELEGRAM_WEBHOOK_URL", "")
+WEBHOOK_SECRET   = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+USER_NAME        = os.getenv("USER_NAME", "Alex Rivera")
+PORT             = 8443
+
+_raw_chat_id = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "")
+ALLOWED_CHAT_ID: int | None = int(_raw_chat_id) if _raw_chat_id.lstrip("-").isdigit() else None
 
 BASE_DIR        = Path(__file__).parent
 INBOX_DIR       = BASE_DIR / "inbox"
@@ -55,6 +59,16 @@ def ts() -> str:
     return datetime.now().strftime("%Y-%m-%d_%H%M%S")
 
 
+def _allowed(update: Update) -> bool:
+    if ALLOWED_CHAT_ID is None:
+        return True
+    if update.effective_chat and update.effective_chat.id == ALLOWED_CHAT_ID:
+        return True
+    chat_id = update.effective_chat.id if update.effective_chat else "unknown"
+    logger.warning("blocked message from unauthorized chat_id=%s", chat_id)
+    return False
+
+
 def last_biography() -> str | None:
     pdfs = sorted(BIOGRAPHIES_DIR.glob("*.pdf"))
     return pdfs[-1].stem if pdfs else None
@@ -62,6 +76,8 @@ def last_biography() -> str | None:
 
 # ── Command handlers ──────────────────────────────────────────────────────────
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
     first_name = USER_NAME.split()[0]
     await update.message.reply_text(
         f"Hello, {first_name}. 👋\n\n"
@@ -75,6 +91,8 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
     items = list(INBOX_DIR.iterdir()) if INBOX_DIR.exists() else []
     count = len(items)
     noun  = "item" if count == 1 else "items"
@@ -86,27 +104,33 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ── Message handlers ──────────────────────────────────────────────────────────
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
     filepath = INBOX_DIR / f"{ts()}_note.txt"
     async with aiofiles.open(filepath, "w", encoding="utf-8") as f:
         await f.write(update.message.text)
     logger.info("saved text  → %s", filepath.name)
-    await update.message.reply_text("Got it. 🖊")
+    await update.message.reply_text("Noted. I'll weave it in. 🖊")
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
     filepath  = INBOX_DIR / f"{ts()}_voice.ogg"
     voice_file = await update.message.voice.get_file()
     await voice_file.download_to_drive(filepath)
     logger.info("saved voice → %s", filepath.name)
-    await update.message.reply_text("Got it. 🖊")
+    await update.message.reply_text("Voice note captured. I'll transcribe it tonight. ✦")
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
     filepath   = INBOX_DIR / f"{ts()}_photo.jpg"
     photo_file = await update.message.photo[-1].get_file()  # highest resolution
     await photo_file.download_to_drive(filepath)
     logger.info("saved photo → %s", filepath.name)
-    await update.message.reply_text("Got it. 🖊")
+    await update.message.reply_text("Photo added to your chronicle. 📷")
 
 
 # ── Startup banner ────────────────────────────────────────────────────────────
@@ -140,15 +164,15 @@ def main() -> None:
 
     if WEBHOOK_URL:
         _print_startup("webhook")
-        # Use the bot token as the URL path — prevents unauthenticated POSTs
         webhook_path     = BOT_TOKEN
         full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}/{webhook_path}"
-        logger.info("starting webhook on :%d → %s", PORT, full_webhook_url)
+        logger.info("starting webhook on :%d (token path redacted)", PORT)
         app.run_webhook(
             listen="0.0.0.0",
             port=PORT,
             url_path=webhook_path,
             webhook_url=full_webhook_url,
+            secret_token=WEBHOOK_SECRET or None,
         )
     else:
         _print_startup("polling  [dim](set TELEGRAM_WEBHOOK_URL to switch to webhook)[/dim]")

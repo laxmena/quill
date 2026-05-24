@@ -163,5 +163,5 @@ if __name__ == "__main__":
         start = date.fromisoformat(sys.argv[1])
         end   = date.fromisoformat(sys.argv[2])
 
-    path = asyncio.run(synthesize_and_save(start, end))
-    print(f"saved: {path}")
+    path, count = asyncio.run(synthesize_and_save(start, end))
+    print(f"saved: {path}  ({count} entries)")
