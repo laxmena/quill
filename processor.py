@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from describe import describe_and_save
 from deliver import deliver
+from notify import notify_owner
 from render import render_from_file
 from synthesize import synthesize_and_save
 from transcribe import transcribe_and_save
@@ -44,20 +45,27 @@ def save_state(state: dict) -> None:
 async def process_inbox(inbox_dir: Path = INBOX_DIR) -> int:
     """Transcribe .ogg and caption .jpg/.png files that have no .txt yet.
 
-    Returns the number of files processed.
+    Processes all pending files in parallel. Returns the number successfully processed.
     """
-    count = 0
+    tasks = []
     for path in sorted(inbox_dir.glob("*")):
         if path.suffix == ".txt":
             continue
         if path.with_suffix(".txt").exists():
             continue
         if path.suffix == ".ogg":
-            await transcribe_and_save(path)
-            count += 1
+            tasks.append(transcribe_and_save(path))
         elif path.suffix in (".jpg", ".jpeg", ".png"):
-            await describe_and_save(path)
-            count += 1
+            tasks.append(describe_and_save(path))
+
+    if not tasks:
+        return 0
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    errors = [r for r in results if isinstance(r, BaseException)]
+    for exc in errors:
+        logger.error("inbox processing error: %s", exc)
+    count = len(tasks) - len(errors)
     if count:
         logger.info("processed %d file(s) in inbox", count)
     return count
@@ -126,6 +134,14 @@ async def run_pipeline(
     save_state(state)
 
     logger.info("pipeline complete → %s", pdf_path.name)
+
+    if deliver_email:
+        start_str = period_start.strftime("%-d %b")
+        end_str   = period_end.strftime("%-d %b %Y")
+        await notify_owner(
+            f"✅ Your biography for {start_str} – {end_str} is on its way to your inbox."
+        )
+
     return html_path, pdf_path
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
@@ -164,8 +180,13 @@ async def start_scheduler() -> None:
 
         try:
             await run_pipeline(period_start, period_end)
-        except Exception:
+        except Exception as exc:
             logger.exception("pipeline failed")
+            await notify_owner(
+                f"⚠️ Quill pipeline failed on {today.isoformat()}\n\n"
+                f"{type(exc).__name__}: {exc}\n\n"
+                "Check logs/quill.log for the full traceback."
+            )
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import aiofiles
 from dotenv import load_dotenv
+from retries import with_retry
 
 load_dotenv()
 
@@ -35,24 +36,25 @@ async def describe(image_path: Path) -> str:
     b64 = base64.b64encode(data).decode("utf-8")
     mime = "image/jpeg" if image_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
 
-    result = await _client().chat.completions.create(
-        model="gpt-4o",
-        max_tokens=150,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime};base64,{b64}",
-                            "detail": "high",
-                        },
-                    },
-                    {"type": "text", "text": _PROMPT},
-                ],
-            }
-        ],
+    client = _client()
+    payload = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64}", "detail": "high"},
+                },
+                {"type": "text", "text": _PROMPT},
+            ],
+        }
+    ]
+
+    result = await with_retry(
+        lambda: client.chat.completions.create(
+            model="gpt-4o", max_tokens=150, messages=payload
+        ),
+        attempts=3, base_delay=2.0, timeout=30.0, label="gpt4o-vision",
     )
     caption = result.choices[0].message.content
     logger.info("described %s → %d chars", image_path.name, len(caption))

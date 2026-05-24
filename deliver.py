@@ -10,6 +10,7 @@ from pathlib import Path
 
 import aiofiles
 from dotenv import load_dotenv
+from retries import with_retry
 
 load_dotenv()
 
@@ -137,7 +138,10 @@ async def deliver(
             "must all be set in .env"
         )
 
-    await asyncio.to_thread(_send_sync, msg)
+    await with_retry(
+        lambda: asyncio.to_thread(_send_sync, msg),
+        attempts=3, base_delay=5.0, timeout=30.0, label="smtp",
+    )
     logger.info(
         "delivered '%s' → %s  (%d KB)",
         msg["Subject"],
