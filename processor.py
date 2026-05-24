@@ -20,6 +20,7 @@ logger = logging.getLogger("quill.processor")
 
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
 PROCESSING_HOUR       = int(os.getenv("PROCESSING_HOUR", "2"))
+NUDGE_AFTER_DAYS      = int(os.getenv("NUDGE_AFTER_DAYS", "3"))
 
 BASE_DIR        = Path(__file__).parent
 INBOX_DIR       = BASE_DIR / "inbox"
@@ -32,13 +33,18 @@ STATE_FILE      = LOGS_DIR / "state.json"
 
 def load_state() -> dict:
     if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text())
+        try:
+            return json.loads(STATE_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            logger.warning("state.json is corrupt or unreadable — resetting to defaults")
     return {"last_run_date": None, "biography_count": 0}
 
 
 def save_state(state: dict) -> None:
     LOGS_DIR.mkdir(exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+    tmp = STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2))
+    tmp.rename(STATE_FILE)  # atomic on POSIX — no partial-write exposure
 
 # ── Pipeline steps ────────────────────────────────────────────────────────────
 
@@ -62,9 +68,9 @@ async def process_inbox(inbox_dir: Path = INBOX_DIR) -> int:
         return 0
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    errors = [r for r in results if isinstance(r, BaseException)]
+    errors = [r for r in results if isinstance(r, Exception)]
     for exc in errors:
-        logger.error("inbox processing error: %s", exc)
+        logger.error("inbox processing error", exc_info=exc)
     count = len(tasks) - len(errors)
     if count:
         logger.info("processed %d file(s) in inbox", count)
@@ -144,6 +150,44 @@ async def run_pipeline(
 
     return html_path, pdf_path
 
+# ── Nudge ─────────────────────────────────────────────────────────────────────
+
+async def _maybe_nudge(
+    inbox_dir: Path = INBOX_DIR,
+    processed_dir: Path = PROCESSED_DIR,
+) -> None:
+    """Send a gentle capture reminder if no entry has landed in NUDGE_AFTER_DAYS days."""
+    state     = load_state()
+    today     = date.today()
+    today_str = today.isoformat()
+    if state.get("last_nudge_date") == today_str:
+        return
+
+    last_date: date | None = None
+    for directory in (inbox_dir, processed_dir):
+        if not directory.exists():
+            continue
+        for f in directory.iterdir():
+            parts = f.stem.split("_")
+            try:
+                d = date.fromisoformat(parts[0])
+                if last_date is None or d > last_date:
+                    last_date = d
+            except (ValueError, IndexError):
+                pass
+
+    days_silent = (today - last_date).days if last_date else NUDGE_AFTER_DAYS + 1
+    if days_silent >= NUDGE_AFTER_DAYS:
+        await notify_owner(
+            "Your chronicle is waiting. 📝\n\n"
+            "What happened today — anything worth remembering? "
+            "Send me a thought, a voice note, or a photo."
+        )
+        state["last_nudge_date"] = today_str
+        save_state(state)
+        logger.info("sent idle nudge (last entry %d day(s) ago)", days_silent)
+
+
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 
 def next_run_dt(from_dt: datetime | None = None) -> datetime:
@@ -167,12 +211,25 @@ async def start_scheduler() -> None:
         logger.info("next run: %s  (in %.0fs)", nxt.strftime("%Y-%m-%d %H:%M"), wait_secs)
         await asyncio.sleep(wait_secs)
 
+        # Daily: transcribe/caption any new inbox items and confirm to owner
+        processed = await process_inbox()
+        if processed:
+            noun = "item" if processed == 1 else "items"
+            await notify_owner(
+                f"✨ Processed {processed} {noun} from your inbox "
+                "(transcribed and captioned, ready for the next chapter)."
+            )
+
+        # Daily: nudge if the chronicle has been quiet
+        await _maybe_nudge()
+
         state    = load_state()
         last_run = date.fromisoformat(state["last_run_date"]) if state["last_run_date"] else None
         today    = date.today()
 
         if last_run and (today - last_run).days < BIOGRAPHY_PERIOD_DAYS:
-            logger.info("skipping — last biography %d day(s) ago", (today - last_run).days)
+            logger.info("skipping pipeline — last biography %d day(s) ago",
+                        (today - last_run).days)
             continue
 
         period_end   = today

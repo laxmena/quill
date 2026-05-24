@@ -1,6 +1,8 @@
+import json
 import logging
 import os
 import re
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -83,12 +85,13 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     first_name = USER_NAME.split()[0]
     await update.message.reply_text(
         f"Hello, {first_name}. 👋\n\n"
-        "I'm Quill, your personal historian. Send me anything — "
-        "a thought, a voice note, or a photo — and I'll remember it for you. "
-        "Every two weeks I'll weave it all into a biography and deliver it "
-        "to your inbox.\n\n"
-        "Use /status to see what I've collected so far, "
-        "or /preview to read a draft of what's been written."
+        "I'm Quill, your personal historian. Send me voice notes, photos, or "
+        "text throughout your days and every two weeks I'll weave them into a "
+        "biography chapter delivered to your inbox.\n\n"
+        "Commands: /status  /preview  /delete-last  /help\n\n"
+        "Privacy: your voice notes are transcribed by OpenAI Whisper, photos "
+        "described by GPT-4o, and entries synthesised into prose by Claude. "
+        "Everything runs on your own server."
     )
     logger.info("/start")
 
@@ -96,12 +99,35 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _allowed(update):
         return
-    items = list(INBOX_DIR.iterdir()) if INBOX_DIR.exists() else []
+    items = [f for f in INBOX_DIR.iterdir() if f.is_file()] if INBOX_DIR.exists() else []
     count = len(items)
-    noun  = "item" if count == 1 else "items"
-    bio   = last_biography()
-    bio_line = f"Last biography: {bio}" if bio else "No biographies generated yet."
-    await update.message.reply_text(f"📬 {count} {noun} in inbox\n{bio_line}")
+    noun  = "moment" if count == 1 else "moments"
+
+    state: dict = {}
+    state_file = LOGS_DIR / "state.json"
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text())
+        except Exception:
+            pass
+
+    last_run_str    = state.get("last_run_date")
+    biography_count = state.get("biography_count", 0)
+    if last_run_str:
+        last_run   = date.fromisoformat(last_run_str)
+        days_since = (date.today() - last_run).days
+        days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
+        plural_c   = "s" if biography_count != 1 else ""
+        plural_d   = "s" if days_until != 1 else ""
+        bio_line   = (
+            f"Last chapter: {last_run.strftime('%-d %B %Y')} "
+            f"({biography_count} chapter{plural_c} total)\n"
+            f"Next chapter in {days_until} day{plural_d}"
+        )
+    else:
+        bio_line = f"No chapters yet — keep the notes coming."
+
+    await update.message.reply_text(f"📬 {count} {noun} waiting to be woven\n\n{bio_line}")
     logger.info("/status — %d item(s) in inbox", count)
 
 
@@ -129,11 +155,26 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _allowed(update):
         return
-    filepath   = INBOX_DIR / f"{ts()}_photo.jpg"
+    stamp    = ts()
+    filepath = INBOX_DIR / f"{stamp}_photo.jpg"
     photo_file = await update.message.photo[-1].get_file()  # highest resolution
     await photo_file.download_to_drive(filepath)
     logger.info("saved photo → %s", filepath.name)
-    await update.message.reply_text("Photo added to your chronicle. 📷")
+
+    caption = getattr(update.message, "caption", None)
+    if caption:
+        txt_path = INBOX_DIR / f"{stamp}_photo.txt"
+        async with aiofiles.open(txt_path, "w", encoding="utf-8") as f:
+            await f.write(caption)
+        logger.info("saved caption → %s", txt_path.name)
+        await update.message.reply_text(
+            f"Photo and caption added to your chronicle. 📷\n\n\"{caption}\""
+        )
+    else:
+        await update.message.reply_text(
+            "Photo added to your chronicle. 📷 I'll describe it tonight.\n\n"
+            "Tip: send a caption with your photo and I'll use your words instead."
+        )
 
 
 async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -141,7 +182,7 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     await update.message.reply_text("Composing your preview… this may take a moment.")
     try:
-        from synthesize import collect_entries, synthesize
+        from synthesize import collect_entries, synthesize, _load_prior_chapter
         end   = date.today()
         start = end - timedelta(days=BIOGRAPHY_PERIOD_DAYS - 1)
         entries = await collect_entries(since=start, until=end)
@@ -151,7 +192,8 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "Send me some notes, voice memos, or photos first."
             )
             return
-        html = await synthesize(entries, start, end)
+        prior_html = await _load_prior_chapter(BIOGRAPHIES_DIR, current_end=end)
+        html = await synthesize(entries, start, end, prior_html=prior_html)
         # Strip HTML tags and normalise whitespace for plain-text preview
         text = re.sub(r"<[^>]+>", " ", html)
         text = re.sub(r"[ \t]+", " ", text)
@@ -167,6 +209,67 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "Something went wrong while composing your preview. "
             "Check logs/quill.log for details."
         )
+
+
+async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
+    await update.message.reply_text(
+        "Quill — personal historian\n\n"
+        "Commands:\n"
+        "  /status        what's in your chronicle\n"
+        "  /preview       read a draft chapter right now\n"
+        "  /delete-last   remove the last thing you sent\n"
+        "  /help          show this message\n\n"
+        "Send me:\n"
+        "  🎙 Voice notes — transcribed tonight\n"
+        "  📷 Photos — described tonight (add a caption for your own words)\n"
+        "  🖊 Text — anything worth remembering\n\n"
+        f"Every {BIOGRAPHY_PERIOD_DAYS} days I weave everything into a biography "
+        "chapter and deliver it to your inbox.\n\n"
+        "Privacy: voice → OpenAI Whisper · photos → GPT-4o · entries → Claude"
+    )
+    logger.info("/help")
+
+
+async def handle_delete_last(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
+    files = [f for f in INBOX_DIR.iterdir() if f.is_file()] if INBOX_DIR.exists() else []
+    if not files:
+        await update.message.reply_text("Your inbox is empty — nothing to delete.")
+        return
+
+    def _stem_dt(stem: str) -> datetime:
+        parts = stem.split("_")
+        try:
+            return datetime.strptime(f"{parts[0]}_{parts[1]}", "%Y-%m-%d_%H%M%S")
+        except (ValueError, IndexError):
+            return datetime.min
+
+    by_stem: dict[str, list[Path]] = defaultdict(list)
+    for f in files:
+        by_stem[f.stem].append(f)
+
+    latest_stem  = max(by_stem.keys(), key=_stem_dt)
+    latest_files = by_stem[latest_stem]
+    for f in latest_files:
+        f.unlink()
+        logger.info("/delete-last removed %s", f.name)
+
+    parts      = latest_stem.split("_")
+    kind_map   = {"note": "note", "voice": "voice note", "photo": "photo"}
+    kind_label = kind_map.get(parts[2] if len(parts) > 2 else "", "item")
+    try:
+        dt_str = _stem_dt(latest_stem).strftime("%-d %B at %H:%M")
+    except Exception:
+        dt_str = "just now"
+
+    await update.message.reply_text(
+        f"Deleted: {kind_label} from {dt_str}. It won't appear in your biography. 🗑"
+    )
+    logger.info("/delete-last — removed %d file(s) with stem %s",
+                len(latest_files), latest_stem)
 
 
 # ── Startup banner ────────────────────────────────────────────────────────────
@@ -192,12 +295,21 @@ def main() -> None:
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start",   handle_start))
-    app.add_handler(CommandHandler("status",  handle_status))
-    app.add_handler(CommandHandler("preview", handle_preview))
+    app.add_handler(CommandHandler("start",       handle_start))
+    app.add_handler(CommandHandler("status",      handle_status))
+    app.add_handler(CommandHandler("preview",     handle_preview))
+    app.add_handler(CommandHandler("help",        handle_help))
+    app.add_handler(CommandHandler("delete-last", handle_delete_last))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    if ALLOWED_CHAT_ID is None:
+        logger.warning(
+            "TELEGRAM_ALLOWED_CHAT_ID is not set — any Telegram user who "
+            "finds this bot can invoke commands and burn API quota; set your "
+            "numeric chat ID in .env to restrict access"
+        )
 
     if WEBHOOK_URL:
         _print_startup("webhook")
