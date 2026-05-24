@@ -114,7 +114,7 @@ async def _load_prior_chapter(
         return None
     async with aiofiles.open(content_files[-1], encoding="utf-8") as f:
         html = await f.read()
-    logger.debug("loaded prior chapter: %s", content_files[-1].name)
+    logger.info("loaded prior chapter: %s", content_files[-1].name)
     return html
 
 # ── Core functions ────────────────────────────────────────────────────────────

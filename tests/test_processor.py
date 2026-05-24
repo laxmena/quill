@@ -2,6 +2,7 @@ import json
 import pytest
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 from processor import (
     archive_inbox,
     load_state,
@@ -9,6 +10,7 @@ from processor import (
     process_inbox,
     run_pipeline,
     save_state,
+    _maybe_nudge,
 )
 
 
@@ -112,6 +114,66 @@ def test_load_state_returns_defaults_when_missing(tmp_path, monkeypatch):
     state = load_state()
     assert state["last_run_date"] is None
     assert state["biography_count"] == 0
+
+
+def test_load_state_recovers_from_corrupt_json(tmp_path, monkeypatch):
+    state_file = tmp_path / "state.json"
+    state_file.write_text("{corrupt")
+    monkeypatch.setattr("processor.STATE_FILE", state_file)
+    state = load_state()
+    assert state["last_run_date"] is None
+    assert state["biography_count"] == 0
+
+
+def test_save_state_atomic_no_partial_file(tmp_path, monkeypatch):
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    save_state({"last_run_date": "2024-05-14", "biography_count": 1})
+    # .tmp should not persist after successful write
+    assert not (tmp_path / "state.tmp").exists()
+    assert (tmp_path / "state.json").exists()
+
+
+# ── _maybe_nudge ───────────────────────────────────────────────────────────────
+
+async def test_maybe_nudge_sends_when_silent(tmp_inbox, tmp_processed, tmp_path, monkeypatch):
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    monkeypatch.setattr("processor.NUDGE_AFTER_DAYS", 3)
+    # Inbox and processed are empty → silent since forever
+    sent = []
+    with patch("processor.notify_owner", new=AsyncMock(side_effect=lambda t: sent.append(t))):
+        await _maybe_nudge(inbox_dir=tmp_inbox, processed_dir=tmp_processed)
+    assert len(sent) == 1
+    assert "waiting" in sent[0].lower() or "chronicle" in sent[0].lower()
+
+
+async def test_maybe_nudge_skips_when_recent_activity(
+    tmp_inbox, tmp_processed, tmp_path, monkeypatch
+):
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    monkeypatch.setattr("processor.NUDGE_AFTER_DAYS", 3)
+    today_str = date.today().isoformat()
+    (tmp_inbox / f"{today_str}_120000_note.txt").write_text("today's entry")
+    sent = []
+    with patch("processor.notify_owner", new=AsyncMock(side_effect=lambda t: sent.append(t))):
+        await _maybe_nudge(inbox_dir=tmp_inbox, processed_dir=tmp_processed)
+    assert sent == []
+
+
+async def test_maybe_nudge_skips_when_already_nudged_today(
+    tmp_inbox, tmp_processed, tmp_path, monkeypatch
+):
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    monkeypatch.setattr("processor.NUDGE_AFTER_DAYS", 3)
+    save_state({"last_run_date": None, "biography_count": 0,
+                "last_nudge_date": date.today().isoformat()})
+    sent = []
+    with patch("processor.notify_owner", new=AsyncMock(side_effect=lambda t: sent.append(t))):
+        await _maybe_nudge(inbox_dir=tmp_inbox, processed_dir=tmp_processed)
+    assert sent == []
 
 
 # ── run_pipeline ───────────────────────────────────────────────────────────────

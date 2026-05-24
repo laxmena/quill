@@ -134,7 +134,7 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 | `TELEGRAM_BOT_TOKEN` | ✓ | — | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_URL` | — | — | Public HTTPS base URL for webhook mode. Leave blank for polling. |
 | `TELEGRAM_WEBHOOK_SECRET` | — | — | Random secret validated in `X-Telegram-Bot-Api-Secret-Token`. Set to a long random string when using webhook mode. |
-| `TELEGRAM_ALLOWED_CHAT_ID` | — | — | Your Telegram numeric chat ID. When set, all other users are silently ignored. Find yours via @userinfobot. |
+| `TELEGRAM_ALLOWED_CHAT_ID` | ✓ | — | Your Telegram numeric chat ID. Without this any user who finds your bot can invoke commands. Find yours via @userinfobot. |
 | `ANTHROPIC_API_KEY` | ✓* | — | API key for Claude (synthesis) |
 | `OPENAI_API_KEY` | ✓* | — | API key for Whisper + GPT-4o (transcription + captions) |
 | `GMAIL_ADDRESS` | ✓* | — | Gmail address used to send biographies |
@@ -143,6 +143,7 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 | `USER_NAME` | — | `Lakshmanan Meiyappan` | Your name as it appears in the biography |
 | `BIOGRAPHY_PERIOD_DAYS` | — | `14` | How many days each biography covers |
 | `PROCESSING_HOUR` | — | `2` | Hour of day (0–23) when the scheduler runs |
+| `NUDGE_AFTER_DAYS` | — | `3` | Days of silence before a gentle capture reminder is sent. Set to `0` to disable. |
 | `QUILL_MOCK` | — | `false` | Set to `true` to simulate all API calls without real keys |
 
 *Not required when `QUILL_MOCK=true`.
@@ -167,7 +168,6 @@ The Rich startup banner shows the active mode:
 ╰─────────────────────────────────╯
   mode    polling
   inbox   /Users/you/quill/inbox
-  port    8080
 ```
 
 ### Start the scheduler
@@ -207,7 +207,7 @@ python cli.py --help
 
 | Command | Description |
 |---|---|
-| `status` | Inbox item counts, last biography date, total generated |
+| `status` | Inbox item counts, last biography date, days until next chapter |
 | `process-inbox` | Transcribe voice notes and caption photos without synthesising |
 | `run` | Full pipeline — transcribe → synthesise → render → deliver |
 | `run --no-email` | Full pipeline, skip email delivery |
@@ -215,6 +215,16 @@ python cli.py --help
 | `preview` | Full pipeline without email (for proofing) |
 | `set-webhook` | Register the Telegram webhook URL with Telegram's API |
 | `start` | Start the background scheduler (runs indefinitely) |
+
+**Bot commands**
+
+| Command | Description |
+|---|---|
+| `/start` | Welcome message with privacy disclosure |
+| `/status` | Items in inbox, last chapter date, days until next |
+| `/preview` | Read a plain-text draft of the current period's biography |
+| `/delete-last` | Remove the most recently captured item from the inbox |
+| `/help` | List all commands with descriptions |
 
 ---
 
@@ -270,17 +280,20 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 51 tests across 6 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 73 tests across 8 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/
-  conftest.py          shared fixtures + QUILL_MOCK setup
-  test_transcribe.py   4 tests
-  test_describe.py     5 tests
-  test_synthesize.py   11 tests
-  test_render.py       9 tests
-  test_deliver.py      7 tests
-  test_processor.py    15 tests
+  conftest.py            shared fixtures + QUILL_MOCK setup
+  test_transcribe.py     4 tests
+  test_describe.py       5 tests
+  test_synthesize.py     17 tests
+  test_render.py         9 tests
+  test_deliver.py        7 tests
+  test_processor.py      15 tests
+  test_retries.py        6 tests
+  test_notify.py         4 tests
+  test_bot_preview.py    6 tests
 ```
 
 ---
