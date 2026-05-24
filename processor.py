@@ -48,12 +48,13 @@ def save_state(state: dict) -> None:
 
 # ── Pipeline steps ────────────────────────────────────────────────────────────
 
-async def process_inbox(inbox_dir: Path = INBOX_DIR) -> int:
+async def process_inbox(inbox_dir: Path = INBOX_DIR) -> tuple[int, list[Path]]:
     """Transcribe .ogg and caption .jpg/.png files that have no .txt yet.
 
-    Processes all pending files in parallel. Returns the number successfully processed.
+    Processes all pending files in parallel. Returns (success_count, failed_paths).
     """
-    tasks = []
+    tasks: list = []
+    pending_paths: list[Path] = []
     for path in sorted(inbox_dir.glob("*")):
         if path.suffix == ".txt":
             continue
@@ -61,20 +62,24 @@ async def process_inbox(inbox_dir: Path = INBOX_DIR) -> int:
             continue
         if path.suffix == ".ogg":
             tasks.append(transcribe_and_save(path))
+            pending_paths.append(path)
         elif path.suffix in (".jpg", ".jpeg", ".png"):
             tasks.append(describe_and_save(path))
+            pending_paths.append(path)
 
     if not tasks:
-        return 0
+        return 0, []
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    errors = [r for r in results if isinstance(r, Exception)]
-    for exc in errors:
-        logger.error("inbox processing error", exc_info=exc)
-    count = len(tasks) - len(errors)
+    failed: list[Path] = []
+    for path, r in zip(pending_paths, results):
+        if isinstance(r, Exception):
+            logger.error("inbox processing error for %s", path.name, exc_info=r)
+            failed.append(path)
+    count = len(tasks) - len(failed)
     if count:
         logger.info("processed %d file(s) in inbox", count)
-    return count
+    return count, failed
 
 
 async def archive_inbox(
@@ -129,15 +134,17 @@ async def run_pipeline(
         biographies_dir=biographies_dir,
     )
 
-    if deliver_email:
-        await deliver(pdf_path, period_start, period_end, entry_count)
-
+    # Archive and persist state before delivery so a delivery failure cannot
+    # cause a duplicate biography on the next run.
     await archive_inbox(until=period_end, inbox_dir=inbox_dir, processed_dir=processed_dir)
 
     state = load_state()
     state["last_run_date"]   = period_end.isoformat()
     state["biography_count"] = state.get("biography_count", 0) + 1
     save_state(state)
+
+    if deliver_email:
+        await deliver(pdf_path, period_start, period_end, entry_count)
 
     logger.info("pipeline complete → %s", pdf_path.name)
 
@@ -177,7 +184,7 @@ async def _maybe_nudge(
                 pass
 
     days_silent = (today - last_date).days if last_date else NUDGE_AFTER_DAYS + 1
-    if days_silent >= NUDGE_AFTER_DAYS:
+    if NUDGE_AFTER_DAYS > 0 and days_silent >= NUDGE_AFTER_DAYS:
         await notify_owner(
             "Your chronicle is waiting. 📝\n\n"
             "What happened today — anything worth remembering? "
@@ -212,12 +219,19 @@ async def start_scheduler() -> None:
         await asyncio.sleep(wait_secs)
 
         # Daily: transcribe/caption any new inbox items and confirm to owner
-        processed = await process_inbox()
+        processed, failed = await process_inbox()
         if processed:
             noun = "item" if processed == 1 else "items"
             await notify_owner(
                 f"✨ Processed {processed} {noun} from your inbox "
                 "(transcribed and captioned, ready for the next chapter)."
+            )
+        if failed:
+            names = ", ".join(f.name for f in failed[:3])
+            extra = f" (and {len(failed) - 3} more)" if len(failed) > 3 else ""
+            await notify_owner(
+                f"⚠️ {len(failed)} item(s) couldn't be processed tonight: {names}{extra}. "
+                "Check logs/quill.log for details — nothing has been lost."
             )
 
         # Daily: nudge if the chronicle has been quiet
@@ -227,22 +241,33 @@ async def start_scheduler() -> None:
         last_run = date.fromisoformat(state["last_run_date"]) if state["last_run_date"] else None
         today    = date.today()
 
-        if last_run and (today - last_run).days < BIOGRAPHY_PERIOD_DAYS:
-            logger.info("skipping pipeline — last biography %d day(s) ago",
-                        (today - last_run).days)
-            continue
+        if last_run:
+            days_since = (today - last_run).days
+            if days_since < BIOGRAPHY_PERIOD_DAYS:
+                logger.info("skipping pipeline — last biography %d day(s) ago", days_since)
+                # Approaching: notify 2 days before the chapter compiles
+                days_until = BIOGRAPHY_PERIOD_DAYS - days_since
+                if days_until == 2:
+                    inbox_count = sum(1 for f in INBOX_DIR.iterdir() if f.is_file()) \
+                        if INBOX_DIR.exists() else 0
+                    noun = "moment" if inbox_count == 1 else "moments"
+                    await notify_owner(
+                        f"📖 Your next chapter arrives in 2 days.\n\n"
+                        f"You have {inbox_count} {noun} captured so far — "
+                        "keep the notes coming to make it a rich one."
+                    )
+                continue
 
         period_end   = today
         period_start = today - timedelta(days=BIOGRAPHY_PERIOD_DAYS - 1)
 
         try:
             await run_pipeline(period_start, period_end)
-        except Exception as exc:
+        except Exception:
             logger.exception("pipeline failed")
             await notify_owner(
-                f"⚠️ Quill pipeline failed on {today.isoformat()}\n\n"
-                f"{type(exc).__name__}: {exc}\n\n"
-                "Check logs/quill.log for the full traceback."
+                f"⚠️ Something went wrong building your chapter tonight ({today.isoformat()}).\n\n"
+                "No entries have been lost. Check logs/quill.log for details."
             )
 
 

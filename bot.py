@@ -145,9 +145,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _allowed(update):
         return
-    filepath  = INBOX_DIR / f"{ts()}_voice.ogg"
-    voice_file = await update.message.voice.get_file()
-    await voice_file.download_to_drive(filepath)
+    filepath = INBOX_DIR / f"{ts()}_voice.ogg"
+    try:
+        voice_file = await update.message.voice.get_file()
+        await voice_file.download_to_drive(filepath)
+    except Exception:
+        logger.exception("failed to save voice note")
+        await update.message.reply_text(
+            "I had trouble saving that voice note — could you try again? 🎙"
+        )
+        return
     logger.info("saved voice → %s", filepath.name)
     await update.message.reply_text("Voice note captured. I'll transcribe it tonight. ✦")
 
@@ -157,8 +164,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     stamp    = ts()
     filepath = INBOX_DIR / f"{stamp}_photo.jpg"
-    photo_file = await update.message.photo[-1].get_file()  # highest resolution
-    await photo_file.download_to_drive(filepath)
+    try:
+        photo_file = await update.message.photo[-1].get_file()  # highest resolution
+        await photo_file.download_to_drive(filepath)
+    except Exception:
+        logger.exception("failed to save photo")
+        await update.message.reply_text(
+            "I had trouble saving that photo — could you try again? 📷"
+        )
+        return
     logger.info("saved photo → %s", filepath.name)
 
     caption = getattr(update.message, "caption", None)
@@ -272,6 +286,15 @@ async def handle_delete_last(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 len(latest_files), latest_stem)
 
 
+async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
+    await update.message.reply_text(
+        "I can capture voice notes, photos, and text. 🖊\n\n"
+        "Try sending one of those!"
+    )
+
+
 # ── Startup banner ────────────────────────────────────────────────────────────
 def _print_startup(mode: str) -> None:
     console.print()
@@ -303,6 +326,10 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(
+        ~filters.COMMAND & ~filters.TEXT & ~filters.VOICE & ~filters.PHOTO,
+        handle_unknown,
+    ))
 
     if ALLOWED_CHAT_ID is None:
         logger.warning(

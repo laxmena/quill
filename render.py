@@ -80,18 +80,18 @@ async def render(
     # ── Render PDF via Playwright ─────────────────────────────────────────────
     async with async_playwright() as pw:
         browser = await pw.chromium.launch()
-        page    = await browser.new_page()
-
-        # Load via file:// so relative font/asset paths resolve correctly
-        await page.goto(f"file://{html_path.resolve()}", wait_until="networkidle")
-
-        await page.pdf(
-            path=str(pdf_path),
-            format="A4",
-            print_background=True,
-            prefer_css_page_size=True,  # honour @page { size: A4 } from the stylesheet
-        )
-        await browser.close()
+        try:
+            page = await browser.new_page()
+            # Load via file:// so relative font/asset paths resolve correctly
+            await page.goto(f"file://{html_path.resolve()}", wait_until="networkidle")
+            await page.pdf(
+                path=str(pdf_path),
+                format="A4",
+                print_background=True,
+                prefer_css_page_size=True,  # honour @page { size: A4 } from the stylesheet
+            )
+        finally:
+            await browser.close()
 
     size_kb = pdf_path.stat().st_size // 1024
     logger.info("saved PDF  → %s (%d KB)", pdf_path.name, size_kb)
