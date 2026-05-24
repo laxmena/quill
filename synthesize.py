@@ -7,6 +7,7 @@ from pathlib import Path
 
 import aiofiles
 from dotenv import load_dotenv
+from retries import with_retry
 
 load_dotenv()
 
@@ -114,13 +115,18 @@ async def synthesize(entries: list[Entry], period_start: date, period_end: date)
     if not entries:
         raise ValueError("no entries to synthesize for this period")
 
-    msg = await _client().messages.create(
-        model="claude-opus-4-7",
-        max_tokens=4096,
-        system=_SYSTEM.format(name=USER_NAME.split()[0]),
-        messages=[
-            {"role": "user", "content": _build_prompt(entries, period_start, period_end)}
-        ],
+    client = _client()
+    prompt = _build_prompt(entries, period_start, period_end)
+    system = _SYSTEM.format(name=USER_NAME.split()[0])
+
+    msg = await with_retry(
+        lambda: client.messages.create(
+            model="claude-opus-4-7",
+            max_tokens=4096,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        ),
+        attempts=3, base_delay=4.0, timeout=90.0, label="claude",
     )
     html = msg.content[0].text
     logger.info("synthesized %d entries → %d chars", len(entries), len(html))

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import aiofiles
 from dotenv import load_dotenv
+from retries import with_retry
 
 load_dotenv()
 
@@ -30,10 +31,14 @@ async def transcribe(audio_path: Path) -> str:
     buf = io.BytesIO(data)
     buf.name = audio_path.name  # SDK uses the name to infer the audio format
 
-    result = await _client().audio.transcriptions.create(
-        file=buf,
-        model="whisper-1",
-    )
+    client = _client()
+
+    async def _call():
+        buf.seek(0)  # reset for each retry attempt
+        return await client.audio.transcriptions.create(file=buf, model="whisper-1")
+
+    result = await with_retry(_call, attempts=3, base_delay=2.0, timeout=30.0,
+                              label="whisper")
     logger.info("transcribed %s → %d chars", audio_path.name, len(result.text))
     return result.text
 

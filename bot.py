@@ -1,6 +1,7 @@
 import logging
 import os
-from datetime import datetime
+import re
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import aiofiles
@@ -20,11 +21,12 @@ from telegram.ext import (
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BOT_TOKEN        = os.getenv("TELEGRAM_BOT_TOKEN", "")
-WEBHOOK_URL      = os.getenv("TELEGRAM_WEBHOOK_URL", "")
-WEBHOOK_SECRET   = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
-USER_NAME        = os.getenv("USER_NAME", "Lakshmanan Meiyappan")
-PORT             = 8443
+BOT_TOKEN             = os.getenv("TELEGRAM_BOT_TOKEN", "")
+WEBHOOK_URL           = os.getenv("TELEGRAM_WEBHOOK_URL", "")
+WEBHOOK_SECRET        = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+USER_NAME             = os.getenv("USER_NAME", "Lakshmanan Meiyappan")
+BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
+PORT                  = 8443
 
 _raw_chat_id = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "")
 ALLOWED_CHAT_ID: int | None = int(_raw_chat_id) if _raw_chat_id.lstrip("-").isdigit() else None
@@ -85,7 +87,8 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "a thought, a voice note, or a photo — and I'll remember it for you. "
         "Every two weeks I'll weave it all into a biography and deliver it "
         "to your inbox.\n\n"
-        "Use /status to see what I've collected so far."
+        "Use /status to see what I've collected so far, "
+        "or /preview to read a draft of what's been written."
     )
     logger.info("/start")
 
@@ -133,6 +136,39 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("Photo added to your chronicle. 📷")
 
 
+async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _allowed(update):
+        return
+    await update.message.reply_text("Composing your preview… this may take a moment.")
+    try:
+        from synthesize import collect_entries, synthesize
+        end   = date.today()
+        start = end - timedelta(days=BIOGRAPHY_PERIOD_DAYS - 1)
+        entries = await collect_entries(since=start, until=end)
+        if not entries:
+            await update.message.reply_text(
+                "Nothing in your chronicle yet for this period. "
+                "Send me some notes, voice memos, or photos first."
+            )
+            return
+        html = await synthesize(entries, start, end)
+        # Strip HTML tags and normalise whitespace for plain-text preview
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        # Telegram hard-caps messages at 4096 chars
+        if len(text) > 3800:
+            text = text[:3800] + "…\n\n[Full biography arrives in your fortnightly PDF]"
+        await update.message.reply_text(text)
+        logger.info("/preview — sent %d chars to owner", len(text))
+    except Exception:
+        logger.exception("/preview failed")
+        await update.message.reply_text(
+            "Something went wrong while composing your preview. "
+            "Check logs/quill.log for details."
+        )
+
+
 # ── Startup banner ────────────────────────────────────────────────────────────
 def _print_startup(mode: str) -> None:
     console.print()
@@ -156,8 +192,9 @@ def main() -> None:
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start",  handle_start))
-    app.add_handler(CommandHandler("status", handle_status))
+    app.add_handler(CommandHandler("start",   handle_start))
+    app.add_handler(CommandHandler("status",  handle_status))
+    app.add_handler(CommandHandler("preview", handle_preview))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
