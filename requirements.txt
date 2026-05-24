@@ -1,0 +1,10 @@
+python-telegram-bot==20.7
+anthropic
+openai
+playwright
+click
+rich
+python-dotenv
+aiofiles
+aiohttp
+Pillow

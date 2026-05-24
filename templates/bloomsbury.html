@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }}</title>
+  <style>
+    /* ─── Fonts ─────────────────────────────────────────────────────────── */
+    @font-face {
+      font-family: "Cormorant";
+      src: url("../fonts/Cormorant-Regular.woff2") format("woff2"),
+           url("../fonts/Cormorant-Regular.ttf")   format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "Cormorant";
+      src: url("../fonts/Cormorant-Italic.woff2") format("woff2"),
+           url("../fonts/Cormorant-Italic.ttf")   format("truetype");
+      font-weight: 400;
+      font-style: italic;
+    }
+    @font-face {
+      font-family: "Cormorant";
+      src: url("../fonts/Cormorant-SemiBold.woff2") format("woff2"),
+           url("../fonts/Cormorant-SemiBold.ttf")   format("truetype");
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    /* ─── Page layout ───────────────────────────────────────────────────── */
+    @page {
+      size: A4;
+      margin: 28mm 25mm 30mm 30mm;
+
+      @bottom-center {
+        content: counter(page);
+        font-family: "Cormorant", "Georgia", serif;
+        font-size: 10pt;
+        color: #888;
+        letter-spacing: 0.08em;
+      }
+    }
+
+    @page :first {
+      @bottom-center { content: none; }
+    }
+
+    /* ─── Reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ─── Base typography ───────────────────────────────────────────────── */
+    html {
+      font-size: 11.5pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: "Cormorant", "Georgia", "Times New Roman", serif;
+      color: #1a1a18;
+      line-height: 1.75;
+      background: #fff;
+    }
+
+    /* ─── Cover page ────────────────────────────────────────────────────── */
+    .cover {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 237mm; /* A4 minus margins */
+      padding-bottom: 20mm;
+    }
+
+    .cover-rule {
+      width: 48px;
+      height: 2px;
+      background: #1a1a18;
+      margin-bottom: 28px;
+    }
+
+    .cover-label {
+      font-size: 9pt;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    .cover-title {
+      font-size: 32pt;
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+
+    .cover-subtitle {
+      font-size: 13pt;
+      font-style: italic;
+      color: #555;
+      margin-bottom: 40px;
+    }
+
+    .cover-period {
+      font-size: 9.5pt;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #888;
+    }
+
+    /* ─── Chapter / section headings ───────────────────────────────────── */
+    h1 {
+      font-size: 22pt;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+      margin-top: 3em;
+      margin-bottom: 1em;
+    }
+
+    h1:first-child { margin-top: 0; }
+
+    h2 {
+      font-size: 14pt;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-top: 2.5em;
+      margin-bottom: 0.6em;
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      font-style: italic;
+      font-weight: 400;
+      margin-top: 2em;
+      margin-bottom: 0.5em;
+      color: #444;
+    }
+
+    /* ─── Body text ─────────────────────────────────────────────────────── */
+    p {
+      margin-bottom: 1em;
+      text-align: justify;
+      hyphens: auto;
+      orphans: 3;
+      widows: 3;
+    }
+
+    p + p {
+      text-indent: 1.5em;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+
+    p + p.no-indent {
+      text-indent: 0;
+    }
+
+    /* ─── Pull quote ────────────────────────────────────────────────────── */
+    blockquote {
+      margin: 2em 0 2em 2em;
+      padding-left: 1.5em;
+      border-left: 2px solid #c8b89a;
+      font-style: italic;
+      font-size: 12.5pt;
+      color: #444;
+      line-height: 1.65;
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: 0.5em;
+      font-size: 9.5pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-style: normal;
+      color: #888;
+    }
+
+    /* ─── Section divider ───────────────────────────────────────────────── */
+    .divider {
+      text-align: center;
+      margin: 2.5em 0;
+      color: #aaa;
+      letter-spacing: 0.5em;
+      font-size: 10pt;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #e0d8cc;
+      margin: 2em 0;
+    }
+
+    /* ─── Caption (for images / moments) ───────────────────────────────── */
+    .caption {
+      font-size: 9pt;
+      color: #777;
+      font-style: italic;
+      margin-top: 0.4em;
+      text-align: center;
+    }
+
+    .moment {
+      margin: 1.8em 0;
+      padding: 1em 1.2em;
+      background: #faf8f4;
+      border-left: 3px solid #e0d8cc;
+      page-break-inside: avoid;
+    }
+
+    .moment-date {
+      font-size: 8.5pt;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #aaa;
+      margin-bottom: 0.4em;
+    }
+
+    .moment-text {
+      font-size: 11pt;
+      line-height: 1.7;
+      color: #333;
+      margin: 0;
+      text-indent: 0;
+    }
+
+    /* ─── Footer note ───────────────────────────────────────────────────── */
+    .colophon {
+      margin-top: 4em;
+      padding-top: 1.5em;
+      border-top: 1px solid #e0d8cc;
+      font-size: 8.5pt;
+      color: #aaa;
+      font-style: italic;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Cover ────────────────────────────────────────────────────────── -->
+  <div class="cover">
+    <div class="cover-rule"></div>
+    <p class="cover-label">A Personal Chronicle</p>
+    <h1 class="cover-title">{{ user_name }}</h1>
+    <p class="cover-subtitle">{{ subtitle }}</p>
+    <p class="cover-period">{{ period_start }} — {{ period_end }}</p>
+  </div>
+
+  <!-- ─── Biography content ────────────────────────────────────────────── -->
+  {{ content }}
+
+  <!-- ─── Colophon ─────────────────────────────────────────────────────── -->
+  <p class="colophon">
+    Composed by Quill on {{ generated_date }}. Based on {{ entry_count }} moments
+    captured between {{ period_start }} and {{ period_end }}.
+  </p>
+
+</body>
+</html>
