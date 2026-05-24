@@ -110,14 +110,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 # ── Startup banner ────────────────────────────────────────────────────────────
-def _print_startup() -> None:
+def _print_startup(mode: str) -> None:
     console.print()
     console.print(Panel.fit("[bold]Quill[/bold]  [dim]personal historian[/dim]",
                             border_style="bright_black"))
     t = Table(show_header=False, box=None, padding=(0, 2))
-    t.add_row("[dim]webhook[/dim]", WEBHOOK_URL or "[red]not set[/red]")
+    t.add_row("[dim]mode   [/dim]", mode)
+    if WEBHOOK_URL:
+        t.add_row("[dim]webhook[/dim]", WEBHOOK_URL)
+        t.add_row("[dim]port   [/dim]", str(PORT))
     t.add_row("[dim]inbox  [/dim]", str(INBOX_DIR))
-    t.add_row("[dim]port   [/dim]", str(PORT))
     console.print(t)
     console.print()
 
@@ -127,11 +129,6 @@ def main() -> None:
     if not BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN is not set")
         raise SystemExit(1)
-    if not WEBHOOK_URL:
-        logger.error("TELEGRAM_WEBHOOK_URL is not set")
-        raise SystemExit(1)
-
-    _print_startup()
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -141,17 +138,22 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    # Use the bot token as the URL path — prevents unauthenticated POSTs
-    webhook_path = BOT_TOKEN
-    full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}/{webhook_path}"
-
-    logger.info("starting webhook on :%d → %s", PORT, full_webhook_url)
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=webhook_path,
-        webhook_url=full_webhook_url,
-    )
+    if WEBHOOK_URL:
+        _print_startup("webhook")
+        # Use the bot token as the URL path — prevents unauthenticated POSTs
+        webhook_path     = BOT_TOKEN
+        full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}/{webhook_path}"
+        logger.info("starting webhook on :%d → %s", PORT, full_webhook_url)
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=webhook_path,
+            webhook_url=full_webhook_url,
+        )
+    else:
+        _print_startup("polling  [dim](set TELEGRAM_WEBHOOK_URL to switch to webhook)[/dim]")
+        logger.info("starting polling")
+        app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
