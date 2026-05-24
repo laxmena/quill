@@ -98,8 +98,12 @@ def set_webhook():
     if not token or not base:
         console.print("[red]TELEGRAM_BOT_TOKEN and TELEGRAM_WEBHOOK_URL must be set in .env[/red]")
         raise SystemExit(1)
-    full_url = f"{base.rstrip('/')}/{token}"
-    payload  = _json.dumps({"url": full_url}).encode()
+    full_url     = f"{base.rstrip('/')}/{token}"
+    payload_dict = {"url": full_url}
+    secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    if secret:
+        payload_dict["secret_token"] = secret
+    payload = _json.dumps(payload_dict).encode()
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{token}/setWebhook",
         data=payload,

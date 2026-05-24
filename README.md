@@ -107,20 +107,21 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-**4. Create runtime directories**
-
-These are gitignored and must be created locally:
+**4. Create runtime directories and configure**
 
 ```bash
-mkdir -p inbox processed biographies logs
-touch logs/quill.log
+make setup
 ```
 
-**5. Configure your environment**
+This creates all required directories (`inbox/`, `processed/`, `biographies/`, `logs/`, `fonts/`), copies `.env.template` → `.env`, and installs the Playwright Chromium browser. Then open `.env` and fill in your keys.
+
+Alternatively, do it manually:
 
 ```bash
+mkdir -p inbox processed biographies logs fonts
+touch logs/quill.log
 cp .env.template .env
-# open .env and fill in your keys
+playwright install chromium
 ```
 
 ---
@@ -140,7 +141,7 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 | `GMAIL_ADDRESS` | ✓* | — | Gmail address used to send biographies |
 | `GMAIL_APP_PASSWORD` | ✓* | — | Gmail App Password (16-character, not your account password) |
 | `BIOGRAPHY_RECIPIENT_EMAIL` | ✓* | — | Destination email for delivered PDFs |
-| `USER_NAME` | — | `Lakshmanan Meiyappan` | Your name as it appears in the biography |
+| `USER_NAME` | — | `Your Name` | Your name as it appears in the biography |
 | `BIOGRAPHY_PERIOD_DAYS` | — | `14` | How many days each biography covers |
 | `PROCESSING_HOUR` | — | `2` | Hour of day (0–23) when the scheduler runs |
 | `NUDGE_AFTER_DAYS` | — | `3` | Days of silence before a gentle capture reminder is sent. Set to `0` to disable. |
@@ -230,6 +231,14 @@ python cli.py --help
 
 ## Development
 
+### Makefile targets
+
+```bash
+make setup   # create directories, copy .env, install Playwright
+make test    # run pytest
+make lint    # run ruff (install with pip install ruff)
+```
+
 ### Mock mode
 
 Set `QUILL_MOCK=true` in `.env` to run the entire pipeline without real API keys. Every external call — Whisper, GPT-4o Vision, Claude, Gmail SMTP — is replaced by a realistic mock that returns plausible data and simulates network latency.
@@ -280,7 +289,7 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 73 tests across 8 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 92 tests across 8 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/
@@ -290,10 +299,10 @@ tests/
   test_synthesize.py     17 tests
   test_render.py         9 tests
   test_deliver.py        7 tests
-  test_processor.py      15 tests
+  test_processor.py      22 tests
   test_retries.py        6 tests
   test_notify.py         4 tests
-  test_bot_preview.py    6 tests
+  test_bot_preview.py    18 tests
 ```
 
 ---
@@ -361,6 +370,25 @@ The biography is rendered using `templates/bloomsbury.html`, a typographic templ
 To use custom fonts, drop `.ttf` or `.woff2` files into `fonts/` and reference them in the template's `@font-face` declarations. The template currently calls for Cormorant Garamond, freely available from [Google Fonts](https://fonts.google.com/specimen/Cormorant+Garamond).
 
 The HTML version of the biography also renders at A4 dimensions in a browser via `@media screen` styles — useful for proofing before printing.
+
+---
+
+## Troubleshooting
+
+**Biographies never arrive**
+Start both processes: `python bot.py` (in one terminal) and `python cli.py start` (in another). The scheduler runs at `PROCESSING_HOUR` each day and only sends a biography when `BIOGRAPHY_PERIOD_DAYS` have elapsed.
+
+**Playwright / Chromium errors**
+Run `playwright install chromium` to install the browser. On low-memory servers you may need to reduce the number of concurrent processes or add a swap file.
+
+**Gmail authentication fails**
+Use a 16-character [App Password](https://support.google.com/accounts/answer/185833), not your regular Gmail password. Two-factor authentication must be enabled on the account.
+
+**Bot doesn't receive messages**
+If running without a public URL, ensure `TELEGRAM_WEBHOOK_URL` is blank so the bot falls back to polling. With a webhook, check that the port (8443) is open and `python cli.py set-webhook` was run after deploying.
+
+**PDF renders in the wrong font**
+Download [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) and place the `.ttf` files in the `fonts/` directory. Without them the PDF falls back to the browser's default serif font.
 
 ---
 

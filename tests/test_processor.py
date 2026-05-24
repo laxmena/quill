@@ -17,33 +17,48 @@ from processor import (
 # ── process_inbox ──────────────────────────────────────────────────────────────
 
 async def test_process_inbox_transcribes_ogg(tmp_inbox, ogg_file):
-    count = await process_inbox(inbox_dir=tmp_inbox)
+    count, errors = await process_inbox(inbox_dir=tmp_inbox)
     assert count == 1
+    assert errors == []
     assert ogg_file.with_suffix(".txt").exists()
 
 
 async def test_process_inbox_describes_jpg(tmp_inbox, jpg_file):
-    count = await process_inbox(inbox_dir=tmp_inbox)
+    count, errors = await process_inbox(inbox_dir=tmp_inbox)
     assert count == 1
+    assert errors == []
     assert jpg_file.with_suffix(".txt").exists()
 
 
 async def test_process_inbox_skips_already_processed(tmp_inbox, ogg_file):
     ogg_file.with_suffix(".txt").write_text("already transcribed")
-    count = await process_inbox(inbox_dir=tmp_inbox)
+    count, errors = await process_inbox(inbox_dir=tmp_inbox)
     assert count == 0
+    assert errors == []
 
 
 async def test_process_inbox_skips_txt_files(tmp_inbox):
     (tmp_inbox / "2024-05-10_120000_note.txt").write_text("just a note")
-    count = await process_inbox(inbox_dir=tmp_inbox)
+    count, errors = await process_inbox(inbox_dir=tmp_inbox)
     assert count == 0
+    assert errors == []
 
 
 async def test_process_inbox_handles_mixed_files(tmp_inbox, ogg_file, jpg_file):
     (tmp_inbox / "2024-05-10_130000_note.txt").write_text("a note")  # already a txt
-    count = await process_inbox(inbox_dir=tmp_inbox)
+    count, errors = await process_inbox(inbox_dir=tmp_inbox)
     assert count == 2  # ogg + jpg, not the .txt
+    assert errors == []
+
+
+async def test_process_inbox_returns_error_paths(tmp_inbox, ogg_file, monkeypatch):
+    async def _fail(path):
+        raise RuntimeError("boom")
+    monkeypatch.setattr("processor.transcribe_and_save", _fail)
+    count, errors = await process_inbox(inbox_dir=tmp_inbox)
+    assert count == 0
+    assert len(errors) == 1
+    assert errors[0] == ogg_file
 
 
 # ── archive_inbox ──────────────────────────────────────────────────────────────
@@ -170,6 +185,18 @@ async def test_maybe_nudge_skips_when_already_nudged_today(
     monkeypatch.setattr("processor.NUDGE_AFTER_DAYS", 3)
     save_state({"last_run_date": None, "biography_count": 0,
                 "last_nudge_date": date.today().isoformat()})
+    sent = []
+    with patch("processor.notify_owner", new=AsyncMock(side_effect=lambda t: sent.append(t))):
+        await _maybe_nudge(inbox_dir=tmp_inbox, processed_dir=tmp_processed)
+    assert sent == []
+
+
+async def test_maybe_nudge_disabled_when_zero(
+    tmp_inbox, tmp_processed, tmp_path, monkeypatch
+):
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    monkeypatch.setattr("processor.NUDGE_AFTER_DAYS", 0)
     sent = []
     with patch("processor.notify_owner", new=AsyncMock(side_effect=lambda t: sent.append(t))):
         await _maybe_nudge(inbox_dir=tmp_inbox, processed_dir=tmp_processed)

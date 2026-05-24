@@ -207,3 +207,52 @@ async def test_photo_without_caption_no_txt(update, tmp_path, monkeypatch):
     assert list(inbox.glob("*_photo.txt")) == []
     reply = update.message.reply_text.call_args[0][0]
     assert "describe" in reply.lower() or "tonight" in reply.lower()
+
+
+# ── download error handling ───────────────────────────────────────────────────
+
+async def test_voice_download_error_replies_gracefully(update, tmp_path, monkeypatch):
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    monkeypatch.setattr(bot, "INBOX_DIR", inbox)
+    update.message.voice = MagicMock()
+    update.message.voice.get_file = AsyncMock(side_effect=RuntimeError("network error"))
+
+    await bot.handle_voice(update, MagicMock())
+
+    reply = update.message.reply_text.call_args[0][0]
+    assert "trouble" in reply.lower() or "try again" in reply.lower()
+    assert list(inbox.glob("*.ogg")) == []
+
+
+async def test_photo_download_error_replies_gracefully(update, tmp_path, monkeypatch):
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    monkeypatch.setattr(bot, "INBOX_DIR", inbox)
+    update.message.photo = [MagicMock()]
+    update.message.photo[-1].get_file = AsyncMock(side_effect=RuntimeError("network error"))
+
+    await bot.handle_photo(update, MagicMock())
+
+    reply = update.message.reply_text.call_args[0][0]
+    assert "trouble" in reply.lower() or "try again" in reply.lower()
+    assert list(inbox.glob("*.jpg")) == []
+
+
+# ── fallback handler ─────────────────────────────────────────────────────────
+
+async def test_unknown_message_type_replies_with_hint(update):
+    await bot.handle_unknown(update, MagicMock())
+    reply = update.message.reply_text.call_args[0][0]
+    assert "voice" in reply.lower() or "photo" in reply.lower()
+
+
+async def test_unknown_blocked_for_unauthorized_chat(monkeypatch):
+    monkeypatch.setattr(bot, "ALLOWED_CHAT_ID", 11111)
+    u = MagicMock()
+    u.effective_chat = MagicMock()
+    u.effective_chat.id = 99999
+    u.message = MagicMock()
+    u.message.reply_text = AsyncMock()
+    await bot.handle_unknown(u, MagicMock())
+    u.message.reply_text.assert_not_called()
