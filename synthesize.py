@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -48,6 +49,11 @@ entries, voice note transcriptions, and photo captions in chronological order.
 Weave them into flowing biographical prose. Do not list entries mechanically —
 find themes, rhythms, and meaning across them.
 
+This biography spans multiple chapters. If the user message includes a prior
+chapter, maintain narrative continuity: do not re-introduce people or settings
+already established, develop recurring themes, and let the reader sense the
+passage of time across a single, continuous life.
+
 Output rules (strictly observed):
 - Return only inner HTML; no <html>, <head>, or <body> tags
 - <h2> for the chapter title
@@ -61,10 +67,23 @@ Output rules (strictly observed):
 """
 
 
-def _build_prompt(entries: list[Entry], period_start: date, period_end: date) -> str:
+def _build_prompt(
+    entries: list[Entry],
+    period_start: date,
+    period_end: date,
+    prior_text: str | None = None,
+) -> str:
     start_str = period_start.strftime("%-d %B")
     end_str   = period_end.strftime("%-d %B %Y")
-    lines = [
+    lines: list[str] = []
+    if prior_text:
+        lines += [
+            "=== Previous chapter (narrative context — do not repeat) ===",
+            prior_text.strip(),
+            "",
+            "=== New entries for this chapter ===",
+        ]
+    lines += [
         f"Period: {start_str} – {end_str}",
         f"Subject: {USER_NAME}",
         "",
@@ -76,6 +95,27 @@ def _build_prompt(entries: list[Entry], period_start: date, period_end: date) ->
         lines.append(f"\n[{e.timestamp.strftime('%-d %B, %H:%M')} — {label}]")
         lines.append(e.text.strip())
     return "\n".join(lines)
+
+# ── Prior-chapter loader ──────────────────────────────────────────────────────
+
+async def _load_prior_chapter(
+    biographies_dir: Path,
+    current_end: date | None = None,
+) -> str | None:
+    """Return the HTML of the most recent chapter before *current_end*, if any.
+
+    File names are YYYY-MM-DD_content.html, so lexicographic sort == chronological.
+    """
+    content_files = sorted(biographies_dir.glob("*_content.html"))
+    if current_end:
+        exclude = f"{current_end.isoformat()}_content.html"
+        content_files = [f for f in content_files if f.name < exclude]
+    if not content_files:
+        return None
+    async with aiofiles.open(content_files[-1], encoding="utf-8") as f:
+        html = await f.read()
+    logger.debug("loaded prior chapter: %s", content_files[-1].name)
+    return html
 
 # ── Core functions ────────────────────────────────────────────────────────────
 
@@ -110,13 +150,28 @@ async def collect_entries(
     return entries
 
 
-async def synthesize(entries: list[Entry], period_start: date, period_end: date) -> str:
-    """Call Claude and return biography HTML for the given entries."""
+async def synthesize(
+    entries: list[Entry],
+    period_start: date,
+    period_end: date,
+    prior_html: str | None = None,
+) -> str:
+    """Call Claude and return biography HTML for the given entries.
+
+    If *prior_html* is provided it is stripped to plain text and prepended to
+    the prompt so Claude can maintain narrative continuity across chapters.
+    """
     if not entries:
         raise ValueError("no entries to synthesize for this period")
 
+    prior_text: str | None = None
+    if prior_html:
+        plain = re.sub(r"<[^>]+>", " ", prior_html)
+        plain = re.sub(r"[ \t]+", " ", plain)
+        prior_text = plain.strip()
+
     client = _client()
-    prompt = _build_prompt(entries, period_start, period_end)
+    prompt = _build_prompt(entries, period_start, period_end, prior_text=prior_text)
     system = _SYSTEM.format(name=USER_NAME.split()[0])
 
     msg = await with_retry(
@@ -145,9 +200,10 @@ async def synthesize_and_save(
     intermediate artifact; render.py injects it into the full template.
     """
     biographies_dir.mkdir(exist_ok=True)
+    prior_html = await _load_prior_chapter(biographies_dir, current_end=period_end)
     entries = await collect_entries(since=period_start, until=period_end,
                                     inbox_dir=inbox_dir)
-    html = await synthesize(entries, period_start, period_end)
+    html = await synthesize(entries, period_start, period_end, prior_html=prior_html)
     out_path = biographies_dir / f"{period_end.isoformat()}_content.html"
     async with aiofiles.open(out_path, "w", encoding="utf-8") as f:
         await f.write(html)

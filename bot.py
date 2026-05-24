@@ -201,6 +201,11 @@ def main() -> None:
 
     if WEBHOOK_URL:
         _print_startup("webhook")
+        if not WEBHOOK_SECRET:
+            logger.warning(
+                "TELEGRAM_WEBHOOK_SECRET is not set — webhook requests are unauthenticated; "
+                "set a long random string in .env to enable Telegram's HMAC verification"
+            )
         webhook_path     = BOT_TOKEN
         full_webhook_url = f"{WEBHOOK_URL.rstrip('/')}/{webhook_path}"
         logger.info("starting webhook on :%d (token path redacted)", PORT)
