@@ -201,8 +201,22 @@ async def synthesize(
         attempts=3, base_delay=4.0, timeout=90.0, label="claude",
     )
     html = msg.content[0].text
-    logger.info("synthesized %d entries → %d chars", len(entries), len(html))
+    _log_synthesis_metrics(html, len(entries))
     return html
+
+
+def _log_synthesis_metrics(html: str, entry_count: int) -> None:
+    plain = re.sub(r"<[^>]+>", " ", html)
+    wc    = len(plain.split())
+    h3    = len(re.findall(r"<h3[\s>]", html, re.IGNORECASE))
+    bq    = len(re.findall(r"<blockquote[\s>]", html, re.IGNORECASE))
+    mom   = len(re.findall(r'class="moment"', html))
+    ratio = round(wc / entry_count, 1) if entry_count else 0
+    logger.info(
+        "synthesis metrics — entries=%d words=%d h3=%d blockquote=%d moment=%d "
+        "words_per_entry=%.1f",
+        entry_count, wc, h3, bq, mom, ratio,
+    )
 
 
 async def synthesize_and_save(
