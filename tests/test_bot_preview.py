@@ -281,7 +281,7 @@ async def test_photo_without_caption_no_txt(update, tmp_path, monkeypatch):
 
     assert list(inbox.glob("*_photo.txt")) == []
     reply = update.message.reply_text.call_args[0][0]
-    assert "describe" in reply.lower() or "tonight" in reply.lower()
+    assert "describe" in reply.lower()
 
 
 # ── download error handling ───────────────────────────────────────────────────

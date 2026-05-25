@@ -21,7 +21,7 @@ load_dotenv()
 logger = logging.getLogger("quill.processor")
 
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
-PROCESSING_HOUR       = int(os.getenv("PROCESSING_HOUR", "2"))
+PROCESSING_HOUR       = max(0, min(23, int(os.getenv("PROCESSING_HOUR", "2"))))
 NUDGE_AFTER_DAYS      = int(os.getenv("NUDGE_AFTER_DAYS", "3"))
 
 BASE_DIR        = Path(__file__).parent
@@ -303,8 +303,12 @@ async def start_scheduler() -> None:
                 # Approaching: notify 2 days before the chapter compiles
                 days_until = BIOGRAPHY_PERIOD_DAYS - days_since
                 if days_until == 2:
-                    inbox_count = sum(1 for f in INBOX_DIR.iterdir() if f.is_file()) \
-                        if INBOX_DIR.exists() else 0
+                    stems: set[str] = set()
+                    if INBOX_DIR.exists():
+                        for _f in INBOX_DIR.iterdir():
+                            if _f.is_file():
+                                stems.add(_f.stem)
+                    inbox_count = len(stems)
                     noun = "moment" if inbox_count == 1 else "moments"
                     await notify_owner(
                         f"📖 Your next chapter arrives in 2 days.\n\n"
@@ -328,7 +332,7 @@ async def start_scheduler() -> None:
         except Exception:
             logger.exception("pipeline failed")
             await notify_owner(
-                f"⚠️ Something went wrong building your chapter tonight ({today.isoformat()}).\n\n"
+                f"⚠️ Something went wrong building your chapter ({today.isoformat()}).\n\n"
                 "No entries have been lost. Check logs/quill.log for details."
             )
 

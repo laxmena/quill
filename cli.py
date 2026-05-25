@@ -1,5 +1,6 @@
 import asyncio
 import os
+from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -16,6 +17,7 @@ BASE_DIR              = Path(__file__).parent
 INBOX_DIR             = BASE_DIR / "inbox"
 BIOGRAPHIES_DIR       = BASE_DIR / "biographies"
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
+PROCESSING_HOUR       = max(0, min(23, int(os.getenv("PROCESSING_HOUR", "2"))))
 
 
 @click.group()
@@ -28,30 +30,37 @@ def status():
     """Show inbox item counts and last biography date."""
     from processor import load_state
 
-    items = list(INBOX_DIR.iterdir()) if INBOX_DIR.exists() else []
+    raw_files = list(INBOX_DIR.iterdir()) if INBOX_DIR.exists() else []
+    stems: dict[str, list[Path]] = defaultdict(list)
+    for f in raw_files:
+        if f.is_file():
+            stems[f.stem].append(f)
+
     kinds = {"note": 0, "voice": 0, "photo": 0}
-    for f in items:
-        parts = f.stem.split("_")
+    for stem, files in stems.items():
+        parts = stem.split("_")
         k = parts[-1] if len(parts) >= 3 else ""
         if k in kinds:
             kinds[k] += 1
 
+    unique_count = len(stems)
     state = load_state()
     pdfs  = sorted(BIOGRAPHIES_DIR.glob("*.pdf")) if BIOGRAPHIES_DIR.exists() else []
 
+    run_hour = f"{PROCESSING_HOUR}:00"
     last_run_str = state.get("last_run_date")
     if last_run_str:
         from datetime import date as _date
         last_run   = _date.fromisoformat(last_run_str)
         days_since = (_date.today() - last_run).days
         days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
-        next_str   = "today — compiling tonight" if days_until == 0 else f"in {days_until} day{'s' if days_until != 1 else ''}"
+        next_str   = f"today — compiling at {run_hour}" if days_until == 0 else f"in {days_until} day{'s' if days_until != 1 else ''}"
     else:
-        next_str = "tonight (first run)"
+        next_str = f"at {run_hour} (first run)"
 
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_row("[dim]inbox[/dim]",
-              f"{len(items)} items  "
+              f"{unique_count} items  "
               f"({kinds['note']} notes · {kinds['voice']} voice · {kinds['photo']} photos)")
     t.add_row("[dim]last biography[/dim]",      last_run_str or "none yet")
     t.add_row("[dim]next chapter[/dim]",        next_str)
