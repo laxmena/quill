@@ -404,16 +404,20 @@ processed/2024-05-10_162200_note.txt
 
 ## Testing Strategy
 
-The test suite has 95+ tests across 9 modules. All tests run with `QUILL_MOCK=true` (set in `conftest.py` before any import) so no real API calls, network connections, or SMTP sessions occur.
+The test suite has 109 tests across 10 modules. All tests run with `QUILL_MOCK=true` (set in `conftest.py` before any import) so no real API calls, network connections, or SMTP sessions occur.
 
 | File | Tests | What it covers |
 |---|---|---|
 | `test_transcribe.py` | 4 | Return type, file creation, content, idempotency |
 | `test_describe.py` | 5 | Return type, file creation, PNG/JPEG extensions |
-| `test_synthesize.py` | 11 | Entry parsing, date filtering, empty/unknown kinds, synthesis, save |
+| `test_synthesize.py` | 17 | Entry parsing, date filtering, empty/unknown kinds, synthesis, save, continuity |
 | `test_render.py` | 9 | Template substitution, HTML validity, file creation, PDF creation |
-| `test_deliver.py` | 7 | Mock path, SMTP not called, credential validation, message structure |
-| `test_processor.py` | 15 | Inbox processing, archiving, scheduler timing, state persistence, end-to-end pipeline |
+| `test_deliver.py` | 9 | Mock path, SMTP not called, credential validation, message structure, chapter title |
+| `test_processor.py` | 23 | Inbox processing, archiving, scheduler timing, state persistence, end-to-end pipeline |
+| `test_retries.py` | 6 | Retry logic, backoff, timeout, cancellation |
+| `test_notify.py` | 4 | Telegram notification, error suppression |
+| `test_bot_preview.py` | 22 | All bot handlers: preview, status, delete-last, text, voice, photo, help, unknown |
+| `test_cli.py` | 10 | CLI commands: status, set-webhook, set-commands, process-inbox |
 
 **Playwright** is replaced by a `mock_playwright` fixture in `conftest.py` that intercepts `render.async_playwright` and writes `b"%PDF-1.4 mock"` to disk without launching a browser.
 

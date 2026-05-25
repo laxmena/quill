@@ -287,7 +287,7 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 95+ tests across 9 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 109 tests across 10 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/
@@ -296,11 +296,12 @@ tests/
   test_describe.py       5 tests
   test_synthesize.py     17 tests
   test_render.py         9 tests
-  test_deliver.py        7 tests
-  test_processor.py      22 tests
+  test_deliver.py        9 tests
+  test_processor.py      23 tests
   test_retries.py        6 tests
   test_notify.py         4 tests
-  test_bot_preview.py    18 tests
+  test_bot_preview.py    22 tests
+  test_cli.py            10 tests
 ```
 
 ---
@@ -410,6 +411,9 @@ If running without a public URL, ensure `TELEGRAM_WEBHOOK_URL` is blank so the b
 
 **PDF renders in the wrong font**
 Download [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) and place the `.ttf` files in the `fonts/` directory. Without them the PDF falls back to the browser's default serif font.
+
+**Recovering accidentally archived entries**
+Files moved to `processed/` after a biography run are never deleted. To include them in a re-run, move them back to `inbox/` and run `python cli.py run --no-email` (or restart the scheduler). The `processed/` directory is gitignored; nothing is lost on disk.
 
 ---
 

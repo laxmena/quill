@@ -124,9 +124,17 @@ def set_webhook():
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req) as resp:
-        result = _json.loads(resp.read())
-    console.print(result)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = _json.loads(resp.read())
+    except Exception as exc:
+        console.print(f"[red]Error contacting Telegram: {exc}[/red]")
+        raise SystemExit(1)
+    if result.get("ok"):
+        console.print("[green]✓ Webhook registered[/green]")
+    else:
+        console.print(f"[red]Failed: {result.get('description', result)}[/red]")
+        raise SystemExit(1)
 
 
 @cli.command("set-commands")
@@ -151,12 +159,17 @@ def set_commands():
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req) as resp:
-        result = _json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = _json.loads(resp.read())
+    except Exception as exc:
+        console.print(f"[red]Error contacting Telegram: {exc}[/red]")
+        raise SystemExit(1)
     if result.get("ok"):
         console.print("[green]✓ Command menu registered with Telegram[/green]")
     else:
-        console.print(f"[red]Failed: {result}[/red]")
+        console.print(f"[red]Failed: {result.get('description', result)}[/red]")
+        raise SystemExit(1)
 
 
 @cli.command()

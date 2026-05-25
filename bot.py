@@ -130,8 +130,27 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not _allowed(update):
         return
     items = [f for f in INBOX_DIR.iterdir() if f.is_file()] if INBOX_DIR.exists() else []
+
+    # Count by type using the filename convention YYYY-MM-DD_HHMMSS_<kind>.<ext>
+    kinds: dict[str, int] = {"voice": 0, "photo": 0, "note": 0}
+    for f in items:
+        parts = f.stem.split("_")
+        k = parts[2] if len(parts) >= 3 else ""
+        if k in kinds:
+            kinds[k] += 1
+
     count = len(items)
-    noun  = "moment" if count == 1 else "moments"
+    if count == 0:
+        breakdown = "nothing yet"
+    else:
+        parts_list = []
+        if kinds["voice"]:
+            parts_list.append(f"{kinds['voice']} voice note{'s' if kinds['voice'] != 1 else ''}")
+        if kinds["photo"]:
+            parts_list.append(f"{kinds['photo']} photo{'s' if kinds['photo'] != 1 else ''}")
+        if kinds["note"]:
+            parts_list.append(f"{kinds['note']} text note{'s' if kinds['note'] != 1 else ''}")
+        breakdown = ", ".join(parts_list) if parts_list else f"{count} item{'s' if count != 1 else ''}"
 
     state: dict = {}
     state_file = LOGS_DIR / "state.json"
@@ -155,9 +174,13 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"Next chapter in {days_until} day{plural_d}"
         )
     else:
-        bio_line = f"No chapters yet — keep the notes coming."
+        days_until = BIOGRAPHY_PERIOD_DAYS
+        plural_d = "s" if days_until != 1 else ""
+        bio_line = f"No chapters yet — first one in {days_until} day{plural_d}."
 
-    await update.message.reply_text(f"📬 {count} {noun} waiting to be woven\n\n{bio_line}")
+    await update.message.reply_text(
+        f"📬 {breakdown} waiting to be woven\n\n{bio_line}"
+    )
     logger.info("/status — %d item(s) in inbox", count)
 
 
@@ -258,7 +281,16 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         prior_html = await _load_prior_chapter(BIOGRAPHIES_DIR, current_end=end)
         html = await synthesize(entries, start, end, prior_html=prior_html)
         text = _html_to_preview(html)
-        days_until = max(0, BIOGRAPHY_PERIOD_DAYS - (end - start).days)
+        # Compute days until next chapter from last_run_date, not from period length.
+        state_file = LOGS_DIR / "state.json"
+        days_until = BIOGRAPHY_PERIOD_DAYS
+        try:
+            state = json.loads(state_file.read_text()) if state_file.exists() else {}
+            if state.get("last_run_date"):
+                last = date.fromisoformat(state["last_run_date"])
+                days_until = max(0, BIOGRAPHY_PERIOD_DAYS - (end - last).days)
+        except Exception:
+            pass
         plural = "day" if days_until == 1 else "days"
         header = "📖 Draft chapter preview — the final PDF will be typeset:\n\n"
         footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
@@ -280,19 +312,20 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not _allowed(update):
         return
     await update.message.reply_text(
-        "Quill — personal historian\n\n"
-        "Commands:\n"
-        "  /status        what's in your chronicle\n"
-        "  /preview       read a draft chapter right now\n"
-        "  /delete-last   remove the last thing you sent\n"
-        "  /help          show this message\n\n"
-        "Send me:\n"
+        "<b>Quill — personal historian</b>\n\n"
+        "<b>Commands</b>\n"
+        "  <code>/preview</code>      — read a draft chapter right now\n"
+        "  <code>/status</code>       — see what's in your chronicle\n"
+        "  <code>/delete-last</code>  — remove the last thing you sent\n"
+        "  <code>/help</code>         — show this message\n\n"
+        "<b>Send me</b>\n"
         "  🎙 Voice notes — transcribed tonight\n"
         "  📷 Photos — described tonight (add a caption for your own words)\n"
         "  🖊 Text — anything worth remembering\n\n"
         f"Every {BIOGRAPHY_PERIOD_DAYS} days I weave everything into a biography "
         "chapter and deliver it to your inbox.\n\n"
-        "Privacy: voice → OpenAI Whisper · photos → GPT-4o · entries → Claude"
+        "<b>Privacy</b>: voice → OpenAI Whisper · photos → GPT-4o · entries → Claude",
+        parse_mode="HTML",
     )
     logger.info("/help")
 
