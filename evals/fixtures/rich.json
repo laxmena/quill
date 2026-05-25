@@ -3,6 +3,7 @@
   "description": "12 entries over 14 days — tests selection under pressure, hard word-count cap",
   "period_start": "2026-06-01",
   "period_end": "2026-06-14",
+  "user_name": "Alex Rivera",
   "prior_html": null,
   "entries": [
     {
@@ -28,7 +29,7 @@
     {
       "timestamp": "2026-06-05T21:00:00",
       "kind": "note",
-      "text": "Long call with Jordan. She is navigating something difficult at work — a team dynamic that isn't resolving. Listened mostly."
+      "text": "Long call with Jordan. Navigating something difficult at work — a team dynamic that isn't resolving. Listened mostly."
     },
     {
       "timestamp": "2026-06-06T07:30:00",
@@ -53,7 +54,7 @@
     {
       "timestamp": "2026-06-11T08:30:00",
       "kind": "note",
-      "text": "Amma called. She asked about work and I gave her the short version. She asked if I was eating properly."
+      "text": "Mum called. She asked about work and I gave her the short version. She asked if I was eating properly."
     },
     {
       "timestamp": "2026-06-12T15:00:00",

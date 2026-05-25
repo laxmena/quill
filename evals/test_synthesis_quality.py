@@ -201,13 +201,18 @@ async def test_continuity_no_reintroduction():
         f"Expected exactly 1 chapter title <h2>, got {metrics['h2_count']}"
     )
 
-    # Continuity check: "Jordan" should not be introduced as if new.
-    # The prior chapter already established her. A re-introduction looks like
+    # Continuity check: characters listed in established_characters should not
+    # be re-introduced as if new. A re-introduction looks like
     # "Jordan, his partner", "Jordan — his colleague", "Jordan (his friend)",
-    # "Jordan: his collaborator", etc.
+    # "Jordan: his collaborator", "Jordan is his colleague", etc.
     import re
-    reintro_pattern = r"Jordan(?:\W{0,5}|\s+(?:is|was|has been|had been)\s+)(?:his|her|their)\s+\w+"
-    assert not re.search(reintro_pattern, html, re.IGNORECASE), (
-        "Continuity failure: Jordan appears to be re-introduced despite being "
-        "established in the prior chapter"
-    )
+    for character in fixture.get("established_characters", []):
+        name = re.escape(character)
+        reintro_pattern = (
+            rf"{name}(?:\W{{0,5}}|\s+(?:is|was|has been|had been)\s+)"
+            rf"(?:his|her|their)\s+\w+"
+        )
+        assert not re.search(reintro_pattern, html, re.IGNORECASE), (
+            f"Continuity failure: {character!r} appears to be re-introduced "
+            f"despite being established in the prior chapter"
+        )
