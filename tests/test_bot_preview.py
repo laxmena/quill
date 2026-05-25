@@ -216,6 +216,9 @@ async def test_delete_last_removes_all_files_with_same_stem(update, tmp_path, mo
     await bot.handle_delete_last(update, MagicMock())
 
     assert list(inbox.iterdir()) == []
+    reply = update.message.reply_text.call_args[0][0]
+    assert "Deleted" in reply
+    assert "caption" not in reply  # "caption" is photo-specific, not for voice notes
 
 
 async def test_delete_last_empty_inbox(update, tmp_path, monkeypatch):

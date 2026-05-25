@@ -41,7 +41,7 @@ You (Telegram)
                                                 │  .txt files
                                                 ▼
                                           synthesize.py
-                                          (Claude Opus)
+                                       (claude-opus-4-7)
                                                 │  biography HTML
                                                 ▼
                                            render.py
@@ -60,7 +60,7 @@ You (Telegram)
 | Capture | `bot.py` | Telegram webhook / polling | Messages → `inbox/` files |
 | Transcribe | `transcribe.py` | OpenAI Whisper | `.ogg` → `.txt` |
 | Caption | `describe.py` | GPT-4o Vision | `.jpg/.png` → `.txt` |
-| Synthesise | `synthesize.py` | Claude Opus | `.txt` × N → biography HTML |
+| Synthesise | `synthesize.py` | claude-opus-4-7 | `.txt` × N → biography HTML |
 | Render | `render.py` | Playwright + Chromium | HTML → A4 PDF + HTML |
 | Deliver | `deliver.py` | Gmail SMTP | PDF → email |
 | Orchestrate | `processor.py` | — | Schedules and chains all stages |

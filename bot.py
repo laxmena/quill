@@ -65,6 +65,15 @@ def ts() -> str:
     return datetime.now().strftime("%Y-%m-%d_%H%M%S") + "_" + secrets.token_hex(3)
 
 
+def _hour_label(h: int) -> str:
+    period = "AM" if h < 12 else "PM"
+    display = h % 12 or 12
+    return f"{display}:00 {period}"
+
+
+HOUR_LABEL = _hour_label(PROCESSING_HOUR)
+
+
 def _allowed(update: Update) -> bool:
     if ALLOWED_CHAT_ID is None:
         return True
@@ -116,15 +125,16 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         f"Hello, {first_name}. 👋\n\n"
         f"I'm Quill, your personal historian. Send me voice notes, photos, or "
         f"text throughout your days and {period_desc} I'll weave them into a "
-        "biography chapter delivered to your inbox.\n\n"
+        "biography chapter and deliver it to your inbox. 📬\n\n"
+        "If you go quiet for a few days I'll send a gentle nudge to keep the notes coming.\n\n"
         "Commands:\n"
         "  /preview      — read a draft chapter right now\n"
         "  /status       — see what's in your chronicle\n"
         "  /delete-last  — remove the last thing you sent\n"
         "  /help         — full guide\n\n"
-        "Privacy: your voice notes are transcribed by OpenAI Whisper, photos "
-        "described by GPT-4o, and entries synthesised into prose by Claude. "
-        "Everything runs on your own server."
+        "Privacy: your voice notes are transcribed by OpenAI Whisper, photos described "
+        "by GPT-4o Vision, and entries synthesised into prose by Claude. Your data is "
+        "processed by OpenAI and Anthropic but never stored by Quill."
     )
     logger.info("/start")
 
@@ -151,7 +161,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             pending += 1
 
     count = len(by_stem)
-    run_hour = f"{PROCESSING_HOUR}:00"
+    run_hour = HOUR_LABEL
     if count == 0:
         breakdown = "nothing yet"
     else:
@@ -176,8 +186,13 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     last_run_str    = state.get("last_run_date")
     biography_count = state.get("biography_count", 0)
+    last_run        = None
     if last_run_str:
-        last_run   = date.fromisoformat(last_run_str)
+        try:
+            last_run = date.fromisoformat(last_run_str)
+        except ValueError:
+            last_run_str = None
+    if last_run:
         days_since = max(0, (date.today() - last_run).days)
         days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
         plural_c   = "s" if biography_count != 1 else ""
@@ -192,10 +207,13 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             + next_line
         )
     else:
-        bio_line = f"No chapters yet — first chapter compiles at {run_hour}."
+        now = datetime.now()
+        first_when = f"tonight at {run_hour}" if now.hour < PROCESSING_HOUR else f"tomorrow at {run_hour}"
+        bio_line = f"No chapters yet — first chapter compiles {first_when}."
 
+    inbox_line = "Nothing captured yet" if count == 0 else f"{breakdown} waiting to be woven"
     await update.message.reply_text(
-        f"📬 {breakdown} waiting to be woven\n\n{bio_line}"
+        f"📬 {inbox_line}\n\n{bio_line}"
     )
     logger.info("/status — %d item(s) in inbox", count)
 
@@ -235,7 +253,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     logger.info("saved voice → %s", filepath.name)
     await update.message.reply_text(
-        f"Voice note captured. I'll transcribe it at {PROCESSING_HOUR}:00. ✦"
+        f"Voice note captured. I'll transcribe it at {HOUR_LABEL}. ✦"
     )
 
 
@@ -276,7 +294,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
     else:
         await update.message.reply_text(
-            f"Photo added to your chronicle. 📷 I'll describe it at {PROCESSING_HOUR}:00.\n\n"
+            f"Photo added to your chronicle. 📷 I'll describe it at {HOUR_LABEL}.\n\n"
             "Tip: send a caption with your photo and I'll use your words instead."
         )
 
@@ -303,16 +321,19 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         state_file = LOGS_DIR / "state.json"
         days_until = BIOGRAPHY_PERIOD_DAYS
         try:
-            state = json.loads(state_file.read_text()) if state_file.exists() else {}
-            if state.get("last_run_date"):
-                last = date.fromisoformat(state["last_run_date"])
-                days_until = max(0, BIOGRAPHY_PERIOD_DAYS - (end - last).days)
+            if state_file.exists():
+                async with aiofiles.open(state_file, "r", encoding="utf-8") as _sf:
+                    state = json.loads(await _sf.read())
+                last_run_str = state.get("last_run_date")
+                if last_run_str:
+                    last = date.fromisoformat(last_run_str)
+                    days_until = max(0, BIOGRAPHY_PERIOD_DAYS - (end - last).days)
         except Exception:
             pass
         entry_noun = "entry" if len(entries) == 1 else "entries"
         header = f"📖 Draft chapter preview ({len(entries)} {entry_noun}) — the final PDF will be typeset:\n\n"
         if days_until == 0:
-            footer = f"\n\n[Chapter due today — compiling at {PROCESSING_HOUR}:00]"
+            footer = f"\n\n[Chapter due today — compiling at {HOUR_LABEL}]"
         else:
             plural = "day" if days_until == 1 else "days"
             footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
@@ -343,10 +364,14 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "  <code>/delete-last</code>  — remove the last thing you sent\n"
         "  <code>/help</code>         — show this message\n\n"
         "<b>Send me</b>\n"
-        f"  🎙 Voice notes — transcribed at {PROCESSING_HOUR}:00\n"
-        f"  📷 Photos — described at {PROCESSING_HOUR}:00 (add a caption for your own words)\n"
+        f"  🎙 Voice notes — transcribed at {HOUR_LABEL}\n"
+        f"  📷 Photos — described at {HOUR_LABEL} (add a caption for your own words)\n"
         "  🖊 Text — anything worth remembering\n\n"
-        f"Every {BIOGRAPHY_PERIOD_DAYS} days I weave everything into a biography "
+        + (
+            "Every two weeks I weave everything into a biography "
+            if BIOGRAPHY_PERIOD_DAYS == 14
+            else f"Every {BIOGRAPHY_PERIOD_DAYS} day{'s' if BIOGRAPHY_PERIOD_DAYS != 1 else ''} I weave everything into a biography "
+        ) +
         "chapter and deliver it to your inbox.\n\n"
         "<b>Nudge</b>: if you go quiet for a few days I'll send a gentle reminder.\n\n"
         "<b>Privacy</b>: voice → OpenAI Whisper · photos → GPT-4o · entries → Claude",
@@ -389,9 +414,10 @@ async def handle_delete_last(update: Update, context: ContextTypes.DEFAULT_TYPE)
         dt_str = "just now"
 
     n_files = len(latest_files)
-    caption_note = " (including caption)" if n_files > 1 else ""
+    caption_note = " (including caption)" if n_files > 1 and parts[-1] == "photo" else ""
     await update.message.reply_text(
-        f"Deleted: {kind_label} from {dt_str}{caption_note}. It won't appear in your biography. 🗑"
+        f"Deleted: {kind_label} from {dt_str}{caption_note}. It won't appear in your biography. 🗑\n\n"
+        "Your chronicle continues — keep sending me notes."
     )
     logger.info("/delete-last — removed %d file(s) with stem %s",
                 len(latest_files), latest_stem)
