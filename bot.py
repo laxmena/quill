@@ -60,7 +60,8 @@ console = Console()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def ts() -> str:
-    return datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    import secrets
+    return datetime.now().strftime("%Y-%m-%d_%H%M%S") + "_" + secrets.token_hex(3)
 
 
 def _allowed(update: Update) -> bool:
@@ -134,11 +135,14 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Count by type using the filename convention YYYY-MM-DD_HHMMSS_<kind>.<ext>
     kinds: dict[str, int] = {"voice": 0, "photo": 0, "note": 0}
+    pending = 0  # media files not yet transcribed/captioned (no .txt companion)
     for f in items:
         parts = f.stem.split("_")
         k = parts[2] if len(parts) >= 3 else ""
         if k in kinds:
             kinds[k] += 1
+        if f.suffix in (".ogg", ".jpg", ".jpeg", ".png") and not f.with_suffix(".txt").exists():
+            pending += 1
 
     count = len(items)
     if count == 0:
@@ -152,6 +156,8 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if kinds["note"]:
             parts_list.append(f"{kinds['note']} text note{'s' if kinds['note'] != 1 else ''}")
         breakdown = ", ".join(parts_list) if parts_list else f"{count} item{'s' if count != 1 else ''}"
+        if pending:
+            breakdown += f" ({pending} pending transcription tonight)"
 
     state: dict = {}
     state_file = LOGS_DIR / "state.json"
@@ -296,9 +302,13 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 days_until = max(0, BIOGRAPHY_PERIOD_DAYS - (end - last).days)
         except Exception:
             pass
-        plural = "day" if days_until == 1 else "days"
-        header = "📖 Draft chapter preview — the final PDF will be typeset:\n\n"
-        footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
+        entry_noun = "entry" if len(entries) == 1 else "entries"
+        header = f"📖 Draft chapter preview ({len(entries)} {entry_noun}) — the final PDF will be typeset:\n\n"
+        if days_until == 0:
+            footer = "\n\n[Chapter due today — compiling tonight]"
+        else:
+            plural = "day" if days_until == 1 else "days"
+            footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
         # Telegram hard-caps messages at 4096 chars
         truncation_note = "\n\n[Preview trimmed — the full chapter appears in your PDF]"
         budget = 4096 - len(header) - len(footer)
@@ -382,7 +392,9 @@ async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     msg = update.message
     if msg.video or msg.video_note:
-        hint = "Video messages aren't supported yet — try sending a voice note instead. 🎙"
+        hint = "Video messages aren't supported yet — try recording a voice note inside Telegram instead. 🎙"
+    elif msg.audio:
+        hint = "That looks like an audio file. For best results, record directly inside Telegram as a voice note. 🎙"
     elif msg.sticker:
         hint = "Stickers can't be saved to your chronicle — try a text note or photo. 🖊"
     elif msg.document:
