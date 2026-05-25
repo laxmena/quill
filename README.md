@@ -1,8 +1,8 @@
 # Quill — Personal Historian
 
-> Capture your life through Telegram. Receive a beautifully typeset biography PDF every two weeks.
+> Capture your life through Telegram. Receive a beautifully typeset biography PDF, delivered on your schedule.
 
-You send Quill voice notes, photos, and text throughout your days. Every two weeks — at 2 AM while you sleep — Quill transcribes your voice, captions your photos, and asks Claude to weave everything into flowing biographical prose. It renders the result into a print-ready A4 PDF using a Bloomsbury-inspired typographic template, and delivers it to your inbox.
+You send Quill voice notes, photos, and text throughout your days. On a configurable schedule — by default every two weeks, at 2 AM while you sleep — Quill transcribes your voice, captions your photos, and asks Claude to weave everything into flowing biographical prose. It renders the result into a print-ready A4 PDF using a Bloomsbury-inspired typographic template, and delivers it to your inbox.
 
 The result is a living chronicle. A record of your life as it actually happened, in language worthy of it.
 
@@ -192,6 +192,8 @@ python processor.py
 python cli.py start
 ```
 
+> **Both processes must run simultaneously.** `bot.py` receives messages from Telegram; `processor.py` (or `cli.py start`) transcribes and synthesises them on schedule. If only one is running, messages are captured but biographies are never generated (or vice versa). Run them in separate terminals, a tmux session, or as systemd services.
+
 ### Run the pipeline manually
 
 ```bash
@@ -301,7 +303,7 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 109 tests across 10 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 110 tests across 10 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/

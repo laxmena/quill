@@ -168,11 +168,15 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         days_since = (date.today() - last_run).days
         days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
         plural_c   = "s" if biography_count != 1 else ""
-        plural_d   = "s" if days_until != 1 else ""
+        if days_until == 0:
+            next_line = "Next chapter due today — compiling tonight"
+        else:
+            plural_d = "s" if days_until != 1 else ""
+            next_line = f"Next chapter in {days_until} day{plural_d}"
         bio_line   = (
             f"Last chapter: {last_run.strftime('%-d %B %Y')} "
             f"({biography_count} chapter{plural_c} total)\n"
-            f"Next chapter in {days_until} day{plural_d}"
+            + next_line
         )
     else:
         days_until = BIOGRAPHY_PERIOD_DAYS
@@ -376,10 +380,16 @@ async def handle_delete_last(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _allowed(update):
         return
-    await update.message.reply_text(
-        "I can capture voice notes, photos, and text. 🖊\n\n"
-        "Try sending one of those!"
-    )
+    msg = update.message
+    if msg.video or msg.video_note:
+        hint = "Video messages aren't supported yet — try sending a voice note instead. 🎙"
+    elif msg.sticker:
+        hint = "Stickers can't be saved to your chronicle — try a text note or photo. 🖊"
+    elif msg.document:
+        hint = "Documents aren't supported — try sending a photo, voice note, or text. 🖊"
+    else:
+        hint = "I can capture voice notes, photos, and text. 🖊\n\nTry sending one of those!"
+    await update.message.reply_text(hint)
 
 
 # ── Startup banner ────────────────────────────────────────────────────────────

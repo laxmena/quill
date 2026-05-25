@@ -155,6 +155,9 @@ async def run_pipeline(
     )
 
     if not commit:
+        # Remove the intermediate content file so it doesn't pollute the
+        # prior-chapter context for future real pipeline runs.
+        content_path.unlink(missing_ok=True)
         logger.info("pipeline (preview) complete → %s", pdf_path.name)
         return html_path, pdf_path
 
