@@ -109,10 +109,11 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not _allowed(update):
         return
     first_name = USER_NAME.split()[0]
+    period_desc = "every two weeks" if BIOGRAPHY_PERIOD_DAYS == 14 else f"every {BIOGRAPHY_PERIOD_DAYS} days"
     await update.message.reply_text(
         f"Hello, {first_name}. 👋\n\n"
-        "I'm Quill, your personal historian. Send me voice notes, photos, or "
-        "text throughout your days and every two weeks I'll weave them into a "
+        f"I'm Quill, your personal historian. Send me voice notes, photos, or "
+        f"text throughout your days and {period_desc} I'll weave them into a "
         "biography chapter delivered to your inbox.\n\n"
         "Commands:\n"
         "  /preview      — read a draft chapter right now\n"
@@ -295,9 +296,11 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         header = "📖 Draft chapter preview — the final PDF will be typeset:\n\n"
         footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
         # Telegram hard-caps messages at 4096 chars
+        truncation_note = "\n\n[Preview trimmed — the full chapter appears in your PDF]"
         budget = 4096 - len(header) - len(footer)
         if len(text) > budget:
-            text = text[:budget - 1] + "…"
+            budget -= len(truncation_note)
+            text = text[:budget - 1] + "…" + truncation_note
         await update.message.reply_text(header + text + footer)
         logger.info("/preview — sent %d chars to owner", len(header) + len(text) + len(footer))
     except Exception:

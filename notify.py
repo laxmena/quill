@@ -4,6 +4,8 @@ import os
 import aiohttp
 from dotenv import load_dotenv
 
+from retries import with_retry
+
 load_dotenv()
 
 logger = logging.getLogger("quill.notify")
@@ -20,16 +22,22 @@ async def notify_owner(text: str) -> None:
     if not BOT_TOKEN or OWNER_CHAT_ID is None:
         logger.debug("notify_owner: not configured, skipping")
         return
-    try:
-        url = f"{_API_BASE}/bot{BOT_TOKEN}/sendMessage"
+
+    url = f"{_API_BASE}/bot{BOT_TOKEN}/sendMessage"
+
+    async def _attempt():
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                url, json={"chat_id": OWNER_CHAT_ID, "text": text}, timeout=aiohttp.ClientTimeout(total=10)
+                url,
+                json={"chat_id": OWNER_CHAT_ID, "text": text},
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if not resp.ok:
                     body = await resp.text()
-                    logger.warning("notify_owner HTTP %d: %s", resp.status, body[:200])
-                    return
+                    raise RuntimeError(f"HTTP {resp.status}: {body[:200]}")
+
+    try:
+        await with_retry(_attempt, attempts=3, base_delay=2.0, label="notify_owner")
         logger.info("notified owner (%d chars)", len(text))
     except Exception:
-        logger.warning("notify_owner failed", exc_info=True)
+        logger.warning("notify_owner failed after retries", exc_info=True)

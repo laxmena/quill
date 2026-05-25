@@ -232,6 +232,36 @@ async def test_run_pipeline_end_to_end(
     assert state["biography_count"] == 1
 
 
+async def test_run_pipeline_commit_false_does_not_archive_or_update_state(
+    tmp_inbox, tmp_biographies, tmp_processed, tmp_path, period, mock_playwright, monkeypatch
+):
+    """commit=False (cli preview mode) must not archive entries or mutate state.json."""
+    start, end = period
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    note = tmp_inbox / "2024-05-10_120000_note.txt"
+    note.write_text("A quiet morning in May.")
+
+    html_path, pdf_path = await run_pipeline(
+        start, end,
+        deliver_email=False,
+        commit=False,
+        inbox_dir=tmp_inbox,
+        biographies_dir=tmp_biographies,
+        processed_dir=tmp_processed,
+    )
+
+    assert html_path.exists()
+    assert pdf_path.exists()
+    # Entry must remain in inbox — not archived
+    assert note.exists()
+    assert not (tmp_processed / note.name).exists()
+    # state.json must not have been written
+    state = load_state()
+    assert state["last_run_date"] is None
+    assert state["biography_count"] == 0
+
+
 async def test_run_pipeline_raises_valueerror_for_empty_inbox(
     tmp_inbox, tmp_biographies, tmp_processed, tmp_path, period, mock_playwright, monkeypatch
 ):

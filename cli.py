@@ -92,7 +92,7 @@ def preview(from_date, to_date):
     start = from_date.date() if from_date else end - timedelta(days=BIOGRAPHY_PERIOD_DAYS - 1)
     console.print(f"Previewing [bold]{start}[/bold] → [bold]{end}[/bold] …")
     try:
-        html_path, pdf_path = asyncio.run(run_pipeline(start, end, deliver_email=False))
+        html_path, pdf_path = asyncio.run(run_pipeline(start, end, deliver_email=False, commit=False))
     except ValueError as exc:
         console.print(f"[yellow]Nothing to synthesize: {exc}[/yellow]")
         raise SystemExit(1)

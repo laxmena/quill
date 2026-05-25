@@ -120,7 +120,8 @@ async def test_preview_truncates_long_content(update):
         await bot.handle_preview(update, MagicMock())
     last_reply = update.message.reply_text.call_args_list[-1][0][0]
     assert len(last_reply) <= 4096
-    assert "day" in last_reply.lower()  # days-until footer always present
+    assert "day" in last_reply.lower()           # days-until footer always present
+    assert "trimmed" in last_reply.lower() or "PDF" in last_reply  # truncation notice
 
 
 async def test_preview_handles_synthesis_error(update):
