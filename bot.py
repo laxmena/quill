@@ -28,7 +28,7 @@ WEBHOOK_URL           = os.getenv("TELEGRAM_WEBHOOK_URL", "")
 WEBHOOK_SECRET        = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 USER_NAME             = os.getenv("USER_NAME", "Your Name")
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
-PROCESSING_HOUR       = int(os.getenv("PROCESSING_HOUR", "2"))
+PROCESSING_HOUR       = max(0, min(23, int(os.getenv("PROCESSING_HOUR", "2"))))
 PORT                  = int(os.getenv("PORT", "8443"))
 
 _raw_chat_id = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "")

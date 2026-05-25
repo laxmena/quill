@@ -142,6 +142,9 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 | `PROCESSING_HOUR` | — | `2` | Hour of day (0–23) when the scheduler runs |
 | `NUDGE_AFTER_DAYS` | — | `3` | Days of silence before a gentle capture reminder is sent. Set to `0` to disable. |
 | `PORT` | — | `8443` | Webhook listen port. Open this port in your firewall when using webhook mode. |
+| `ANTHROPIC_MODEL` | — | `claude-opus-4-7` | Claude model used for biography synthesis. Swap to any compatible model (e.g. `claude-sonnet-4-6`). |
+| `OPENAI_VISION_MODEL` | — | `gpt-4o` | OpenAI model used for photo captioning. |
+| `OPENAI_WHISPER_MODEL` | — | `whisper-1` | OpenAI model used for voice transcription. |
 | `QUILL_MOCK` | — | `false` | Set to `true` to simulate all API calls without real keys |
 
 *Not required when `QUILL_MOCK=true`.
