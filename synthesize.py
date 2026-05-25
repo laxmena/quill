@@ -64,6 +64,22 @@ Output rules (strictly observed):
   to isolate one vivid scene or day worth holding apart from the flow
 - <div class="divider">✦</div> between major sections
 - Write in third person; refer to the subject by first name only
+
+Craft principles (follow these as closely as the output rules):
+- Select, do not cover. Choose the 2–3 most vivid or meaningful moments; leave
+  the rest out entirely. A chapter that says one true thing is better than one
+  that accounts for everything.
+- Show, do not interpret. Render the scene or the moment in concrete detail. Do
+  not explain what a detail reveals about the subject's psychology, character, or
+  word choices — trust the reader to feel it.
+- Earn your sections. Use <h3> only to mark a genuine thematic or temporal shift,
+  not to introduce each entry. A chapter of five entries should have at most 2–3
+  sections.
+- Use <blockquote> sparingly: at most once per chapter, for a phrase that
+  genuinely needs to stand alone. Same rule for <div class="moment">.
+- Where entries are sparse or uneventful, write a shorter chapter. Resist padding
+  with reflection. Aim for roughly 60–80 words per entry; never exceed 800 words
+  regardless of entry count.
 """
 
 
@@ -87,7 +103,7 @@ def _build_prompt(
         f"Period: {start_str} – {end_str}",
         f"Subject: {USER_NAME}",
         "",
-        "Entries (chronological):",
+        f"Entries ({len(entries)} total, chronological):",
     ]
     kind_label = {"note": "Note", "voice": "Voice memo", "photo": "Photo"}
     for e in entries:
@@ -178,7 +194,7 @@ async def synthesize(
     msg = await with_retry(
         lambda: client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=2048,
             system=system,
             messages=[{"role": "user", "content": prompt}],
         ),

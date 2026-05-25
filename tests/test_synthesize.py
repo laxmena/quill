@@ -124,6 +124,16 @@ def test_build_prompt_omits_prior_section_when_none():
     assert "Previous chapter" not in prompt
 
 
+def test_build_prompt_includes_entry_count():
+    entries = [
+        Entry(datetime(2024, 5, 1, 9, 0), "note", "Morning walk."),
+        Entry(datetime(2024, 5, 5, 20, 0), "voice", "Team meeting."),
+        Entry(datetime(2024, 5, 10, 14, 0), "photo", "Reservoir."),
+    ]
+    prompt = _build_prompt(entries, date(2024, 5, 1), date(2024, 5, 14))
+    assert "3 total" in prompt
+
+
 async def test_load_prior_chapter_returns_none_when_empty(tmp_biographies):
     result = await _load_prior_chapter(tmp_biographies)
     assert result is None
