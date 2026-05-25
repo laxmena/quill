@@ -112,19 +112,24 @@ async def run_pipeline(
     period_start: date,
     period_end: date,
     deliver_email: bool = True,
+    commit: bool = True,
     inbox_dir: Path = INBOX_DIR,
     biographies_dir: Path = BIOGRAPHIES_DIR,
     processed_dir: Path = PROCESSED_DIR,
 ) -> tuple[Path, Path]:
     """Run the full pipeline for a period and return (html_path, pdf_path).
 
-    Steps: process inbox → synthesize → render → deliver → archive → save state.
+    Steps: process inbox → synthesize → render → [archive → save state → deliver].
+    Pass commit=False to synthesize and render without archiving entries or
+    updating state.json (used by `cli preview` so a dry-run never corrupts the
+    scheduler's view of the world).
     """
-    logger.info("pipeline start  %s → %s", period_start, period_end)
-    await notify_owner(
-        f"✍️ Your chapter for {period_start.strftime('%-d %b')} – "
-        f"{period_end.strftime('%-d %b %Y')} is compiling… I'll let you know when it's ready."
-    )
+    logger.info("pipeline start  %s → %s  commit=%s", period_start, period_end, commit)
+    if commit:
+        await notify_owner(
+            f"✍️ Your chapter for {period_start.strftime('%-d %b')} – "
+            f"{period_end.strftime('%-d %b %Y')} is compiling… I'll let you know when it's ready."
+        )
 
     await process_inbox(inbox_dir=inbox_dir)
 
@@ -148,6 +153,10 @@ async def run_pipeline(
         content_path, period_start, period_end, entry_count,
         biographies_dir=biographies_dir,
     )
+
+    if not commit:
+        logger.info("pipeline (preview) complete → %s", pdf_path.name)
+        return html_path, pdf_path
 
     # Archive and persist state before delivery so a delivery failure cannot
     # cause a duplicate biography on the next run.
@@ -251,10 +260,17 @@ async def start_scheduler() -> None:
             )
 
         # Daily: nudge if the chronicle has been quiet
-        await _maybe_nudge()
+        try:
+            await _maybe_nudge()
+        except Exception:
+            logger.exception("_maybe_nudge failed")
 
-        state    = load_state()
-        last_run = date.fromisoformat(state["last_run_date"]) if state["last_run_date"] else None
+        try:
+            state    = load_state()
+            last_run = date.fromisoformat(state["last_run_date"]) if state["last_run_date"] else None
+        except Exception:
+            logger.exception("could not load state — skipping pipeline check")
+            continue
         today    = date.today()
 
         if last_run:

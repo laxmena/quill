@@ -49,10 +49,9 @@ async def test_notify_suppresses_network_error(monkeypatch):
     monkeypatch.setattr(notify_mod, "BOT_TOKEN", "fake-token")
     monkeypatch.setattr(notify_mod, "OWNER_CHAT_ID", 99999)
 
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-    mock_session.post.side_effect = OSError("network error")
+    # Patch with_retry to raise immediately (skip backoff in tests)
+    async def _fail(*a, **kw):
+        raise OSError("network error")
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch("notify.with_retry", new=_fail):
         await notify_mod.notify_owner("test")  # must not raise

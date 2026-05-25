@@ -150,6 +150,20 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 
 ## Running Quill
 
+### One-time setup commands
+
+After deploying for the first time, register your bot with Telegram:
+
+```bash
+# Register the bot command menu so Telegram shows / autocomplete
+python cli.py set-commands
+
+# Register the webhook URL (only needed if TELEGRAM_WEBHOOK_URL is set)
+python cli.py set-webhook
+```
+
+These are idempotent — safe to re-run after any config change.
+
 ### Start the Telegram bot
 
 ```bash
