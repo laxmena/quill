@@ -96,6 +96,7 @@ def _build_prompt(
     period_start: date,
     period_end: date,
     prior_text: str | None = None,
+    user_name: str = USER_NAME,
 ) -> str:
     start_str = period_start.strftime("%-d %B")
     end_str   = period_end.strftime("%-d %B %Y")
@@ -109,7 +110,7 @@ def _build_prompt(
         ]
     lines += [
         f"Period: {start_str} – {end_str}",
-        f"Subject: {USER_NAME}",
+        f"Subject: {user_name}",
         "",
         f"Entries ({len(entries)} total, chronological):",
     ]

@@ -63,7 +63,7 @@ async def _call_claude(fixture: dict) -> str:
     # Prefer fixture-level user_name so prior_html and system prompt are coherent
     user_name = fixture.get("user_name") or os.getenv("USER_NAME", "Your Name")
     system    = _SYSTEM.format(name=user_name.split()[0])
-    prompt    = _build_prompt(entries, start, end, prior_text=prior_text)
+    prompt    = _build_prompt(entries, start, end, prior_text=prior_text, user_name=user_name)
     model     = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
 
     client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -206,7 +206,7 @@ async def test_continuity_no_reintroduction():
     # "Jordan, his partner", "Jordan — his colleague", "Jordan (his friend)",
     # "Jordan: his collaborator", etc.
     import re
-    reintro_pattern = r"Jordan\W{0,5}(?:his|her|their)\s+\w+"
+    reintro_pattern = r"Jordan(?:\W{0,5}|\s+(?:is|was|has been|had been)\s+)(?:his|her|their)\s+\w+"
     assert not re.search(reintro_pattern, html, re.IGNORECASE), (
         "Continuity failure: Jordan appears to be re-introduced despite being "
         "established in the prior chapter"
