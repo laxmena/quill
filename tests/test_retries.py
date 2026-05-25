@@ -54,7 +54,7 @@ async def test_timeout_raises_on_slow_call():
         await asyncio.sleep(10)
         return "too late"
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises((TimeoutError, asyncio.TimeoutError)):
         await with_retry(fn, attempts=2, base_delay=0, timeout=0.01)
 
 
