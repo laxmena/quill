@@ -39,11 +39,22 @@ def status():
     state = load_state()
     pdfs  = sorted(BIOGRAPHIES_DIR.glob("*.pdf")) if BIOGRAPHIES_DIR.exists() else []
 
+    last_run_str = state.get("last_run_date")
+    if last_run_str:
+        from datetime import date as _date
+        last_run   = _date.fromisoformat(last_run_str)
+        days_since = (_date.today() - last_run).days
+        days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
+        next_str   = "today — compiling tonight" if days_until == 0 else f"in {days_until} day{'s' if days_until != 1 else ''}"
+    else:
+        next_str = "tonight (first run)"
+
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_row("[dim]inbox[/dim]",
               f"{len(items)} items  "
               f"({kinds['note']} notes · {kinds['voice']} voice · {kinds['photo']} photos)")
-    t.add_row("[dim]last biography[/dim]",      state.get("last_run_date") or "none yet")
+    t.add_row("[dim]last biography[/dim]",      last_run_str or "none yet")
+    t.add_row("[dim]next chapter[/dim]",        next_str)
     t.add_row("[dim]biographies generated[/dim]", str(state.get("biography_count", 0)))
     t.add_row("[dim]PDFs on disk[/dim]",         str(len(pdfs)))
     console.print(t)
@@ -128,7 +139,7 @@ def set_webhook():
         with urllib.request.urlopen(req) as resp:
             result = _json.loads(resp.read())
     except Exception as exc:
-        console.print(f"[red]Error contacting Telegram: {exc}[/red]")
+        console.print(f"[red]Error contacting Telegram: {type(exc).__name__} — check your token and network[/red]")
         raise SystemExit(1)
     if result.get("ok"):
         console.print("[green]✓ Webhook registered[/green]")
@@ -164,7 +175,7 @@ def set_commands():
         with urllib.request.urlopen(req) as resp:
             result = _json.loads(resp.read())
     except Exception as exc:
-        console.print(f"[red]Error contacting Telegram: {exc}[/red]")
+        console.print(f"[red]Error contacting Telegram: {type(exc).__name__} — check your token and network[/red]")
         raise SystemExit(1)
     if result.get("ok"):
         console.print("[green]✓ Command menu registered with Telegram[/green]")

@@ -84,7 +84,7 @@ def test_set_webhook_network_error_exits(runner, monkeypatch):
     with patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
         result = runner.invoke(cli.cli, ["set-webhook"])
     assert result.exit_code != 0
-    assert "connection refused" in result.output
+    assert "OSError" in result.output  # exception type, not message (token-safe)
 
 
 # ── set-commands ──────────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ def test_set_commands_network_error_exits(runner, monkeypatch):
     with patch("urllib.request.urlopen", side_effect=OSError("timeout")):
         result = runner.invoke(cli.cli, ["set-commands"])
     assert result.exit_code != 0
-    assert "timeout" in result.output
+    assert "OSError" in result.output  # exception type, not message (token-safe)
 
 
 # ── process-inbox ─────────────────────────────────────────────────────────────

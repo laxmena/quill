@@ -68,3 +68,11 @@ async def test_cancelled_error_is_not_retried():
     with pytest.raises(asyncio.CancelledError):
         await with_retry(fn, attempts=3, base_delay=0)
     assert len(calls) == 1  # no retry after cancellation
+
+
+async def test_zero_attempts_raises_valueerror():
+    async def fn():
+        return "should not run"
+
+    with pytest.raises(ValueError, match="attempts"):
+        await with_retry(fn, attempts=0)

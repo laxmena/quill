@@ -17,6 +17,8 @@ async def with_retry(
     Each attempt is optionally wrapped in asyncio.wait_for(timeout=timeout).
     Raises the last exception once all attempts are exhausted.
     """
+    if attempts < 1:
+        raise ValueError(f"attempts must be >= 1, got {attempts}")
     last_exc: BaseException | None = None
     tag = label or "call"
     for attempt in range(1, attempts + 1):
