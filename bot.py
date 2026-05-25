@@ -28,6 +28,7 @@ WEBHOOK_URL           = os.getenv("TELEGRAM_WEBHOOK_URL", "")
 WEBHOOK_SECRET        = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 USER_NAME             = os.getenv("USER_NAME", "Your Name")
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
+PROCESSING_HOUR       = int(os.getenv("PROCESSING_HOUR", "2"))
 PORT                  = int(os.getenv("PORT", "8443"))
 
 _raw_chat_id = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "")
@@ -131,20 +132,26 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _allowed(update):
         return
-    items = [f for f in INBOX_DIR.iterdir() if f.is_file()] if INBOX_DIR.exists() else []
+    # Group by stem so a transcribed voice note (ogg + txt) counts as one entry.
+    by_stem: dict[str, list[Path]] = defaultdict(list)
+    if INBOX_DIR.exists():
+        for f in INBOX_DIR.iterdir():
+            if f.is_file():
+                by_stem[f.stem].append(f)
 
-    # Count by type using the filename convention YYYY-MM-DD_HHMMSS_<kind>.<ext>
     kinds: dict[str, int] = {"voice": 0, "photo": 0, "note": 0}
-    pending = 0  # media files not yet transcribed/captioned (no .txt companion)
-    for f in items:
-        parts = f.stem.split("_")
+    pending = 0  # entries whose media file has no .txt companion yet
+    for stem, files in by_stem.items():
+        parts = stem.split("_")
         k = parts[-1] if len(parts) >= 3 else ""
         if k in kinds:
             kinds[k] += 1
-        if f.suffix in (".ogg", ".jpg", ".jpeg", ".png") and not f.with_suffix(".txt").exists():
+        exts = {f.suffix for f in files}
+        if exts & {".ogg", ".jpg", ".jpeg", ".png"} and ".txt" not in exts:
             pending += 1
 
-    count = len(items)
+    count = len(by_stem)
+    run_hour = f"{PROCESSING_HOUR}:00"
     if count == 0:
         breakdown = "nothing yet"
     else:
@@ -157,7 +164,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             parts_list.append(f"{kinds['note']} text note{'s' if kinds['note'] != 1 else ''}")
         breakdown = ", ".join(parts_list) if parts_list else f"{count} item{'s' if count != 1 else ''}"
         if pending:
-            breakdown += f" ({pending} pending transcription tonight)"
+            breakdown += f" ({pending} pending processing at {run_hour})"
 
     state: dict = {}
     state_file = LOGS_DIR / "state.json"
@@ -175,7 +182,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
         plural_c   = "s" if biography_count != 1 else ""
         if days_until == 0:
-            next_line = "Next chapter due today — compiling tonight"
+            next_line = f"Next chapter due today — compiling at {run_hour}"
         else:
             plural_d = "s" if days_until != 1 else ""
             next_line = f"Next chapter in {days_until} day{plural_d}"
@@ -185,7 +192,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             + next_line
         )
     else:
-        bio_line = "No chapters yet — first one compiling tonight."
+        bio_line = f"No chapters yet — first chapter compiles at {run_hour}."
 
     await update.message.reply_text(
         f"📬 {breakdown} waiting to be woven\n\n{bio_line}"
@@ -227,7 +234,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
     logger.info("saved voice → %s", filepath.name)
-    await update.message.reply_text("Voice note captured. I'll transcribe it tonight. ✦")
+    await update.message.reply_text(
+        f"Voice note captured. I'll transcribe it at {PROCESSING_HOUR}:00. ✦"
+    )
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -267,7 +276,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
     else:
         await update.message.reply_text(
-            "Photo added to your chronicle. 📷 I'll describe it tonight.\n\n"
+            f"Photo added to your chronicle. 📷 I'll describe it at {PROCESSING_HOUR}:00.\n\n"
             "Tip: send a caption with your photo and I'll use your words instead."
         )
 
@@ -303,7 +312,7 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         entry_noun = "entry" if len(entries) == 1 else "entries"
         header = f"📖 Draft chapter preview ({len(entries)} {entry_noun}) — the final PDF will be typeset:\n\n"
         if days_until == 0:
-            footer = "\n\n[Chapter due today — compiling tonight]"
+            footer = f"\n\n[Chapter due today — compiling at {PROCESSING_HOUR}:00]"
         else:
             plural = "day" if days_until == 1 else "days"
             footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
@@ -334,8 +343,8 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "  <code>/delete-last</code>  — remove the last thing you sent\n"
         "  <code>/help</code>         — show this message\n\n"
         "<b>Send me</b>\n"
-        "  🎙 Voice notes — transcribed tonight\n"
-        "  📷 Photos — described tonight (add a caption for your own words)\n"
+        f"  🎙 Voice notes — transcribed at {PROCESSING_HOUR}:00\n"
+        f"  📷 Photos — described at {PROCESSING_HOUR}:00 (add a caption for your own words)\n"
         "  🖊 Text — anything worth remembering\n\n"
         f"Every {BIOGRAPHY_PERIOD_DAYS} days I weave everything into a biography "
         "chapter and deliver it to your inbox.\n\n"

@@ -24,20 +24,20 @@ async def notify_owner(text: str) -> None:
         return
 
     url = f"{_API_BASE}/bot{BOT_TOKEN}/sendMessage"
-
-    async def _attempt():
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url,
-                json={"chat_id": OWNER_CHAT_ID, "text": text},
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                if not resp.ok:
-                    body = await resp.text()
-                    raise RuntimeError(f"HTTP {resp.status}: {body[:200]}")
-
     try:
-        await with_retry(_attempt, attempts=3, base_delay=2.0, label="notify_owner")
+        async with aiohttp.ClientSession() as session:
+
+            async def _attempt():
+                async with session.post(
+                    url,
+                    json={"chat_id": OWNER_CHAT_ID, "text": text},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if not resp.ok:
+                        body = await resp.text()
+                        raise RuntimeError(f"HTTP {resp.status}: {body[:200]}")
+
+            await with_retry(_attempt, attempts=3, base_delay=2.0, label="notify_owner")
         logger.info("notified owner (%d chars)", len(text))
     except Exception:
         logger.warning("notify_owner failed after retries", exc_info=True)

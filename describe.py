@@ -50,9 +50,10 @@ async def describe(image_path: Path) -> str:
         }
     ]
 
+    model = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
     result = await with_retry(
         lambda: client.chat.completions.create(
-            model="gpt-4o", max_tokens=150, messages=payload
+            model=model, max_tokens=150, messages=payload
         ),
         attempts=3, base_delay=2.0, timeout=30.0, label="gpt4o-vision",
     )
