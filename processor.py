@@ -121,6 +121,10 @@ async def run_pipeline(
     Steps: process inbox → synthesize → render → deliver → archive → save state.
     """
     logger.info("pipeline start  %s → %s", period_start, period_end)
+    await notify_owner(
+        f"✍️ Your chapter for {period_start.strftime('%-d %b')} – "
+        f"{period_end.strftime('%-d %b %Y')} is compiling… I'll let you know when it's ready."
+    )
 
     await process_inbox(inbox_dir=inbox_dir)
 
