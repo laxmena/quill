@@ -47,12 +47,19 @@ def status():
     state = load_state()
     pdfs  = sorted(BIOGRAPHIES_DIR.glob("*.pdf")) if BIOGRAPHIES_DIR.exists() else []
 
-    run_hour = f"{PROCESSING_HOUR}:00"
+    _period = "AM" if PROCESSING_HOUR < 12 else "PM"
+    _disp   = PROCESSING_HOUR % 12 or 12
+    run_hour = f"{_disp}:00 {_period}"
     last_run_str = state.get("last_run_date")
+    last_run     = None
     if last_run_str:
         from datetime import date as _date
-        last_run   = _date.fromisoformat(last_run_str)
-        days_since = (_date.today() - last_run).days
+        try:
+            last_run = _date.fromisoformat(last_run_str)
+        except ValueError:
+            last_run_str = None
+    if last_run:
+        days_since = max(0, (_date.today() - last_run).days)
         days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
         next_str   = f"today — compiling at {run_hour}" if days_until == 0 else f"in {days_until} day{'s' if days_until != 1 else ''}"
     else:

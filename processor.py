@@ -278,7 +278,7 @@ async def start_scheduler() -> None:
             names = ", ".join(f.name for f in failed[:3])
             extra = f" (and {len(failed) - 3} more)" if len(failed) > 3 else ""
             await notify_owner(
-                f"⚠️ {len(failed)} item(s) couldn't be processed tonight: {names}{extra}. "
+                f"⚠️ {len(failed)} item(s) couldn't be processed: {names}{extra}. "
                 "Check logs/quill.log for details — nothing has been lost."
             )
 
