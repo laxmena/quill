@@ -20,7 +20,7 @@ MOCK                      = os.getenv("QUILL_MOCK", "").lower() in ("1", "true")
 GMAIL_ADDRESS             = os.getenv("GMAIL_ADDRESS", "")
 GMAIL_APP_PASSWORD        = os.getenv("GMAIL_APP_PASSWORD", "")
 BIOGRAPHY_RECIPIENT_EMAIL = os.getenv("BIOGRAPHY_RECIPIENT_EMAIL", "")
-USER_NAME                 = os.getenv("USER_NAME", "Alex Rivera")
+USER_NAME                 = os.getenv("USER_NAME", "Your Name")
 
 BASE_DIR        = Path(__file__).parent
 BIOGRAPHIES_DIR = BASE_DIR / "biographies"
@@ -67,17 +67,20 @@ def _build_message(
     period_start: date,
     period_end: date,
     entry_count: int,
+    chapter_title: str | None = None,
 ) -> MIMEMultipart:
     period_days = (period_end - period_start).days + 1
     start_str   = period_start.strftime("%-d %B %Y")
     end_str     = period_end.strftime("%-d %B %Y")
+    short_range = f"{period_start.strftime('%-d %b')}–{period_end.strftime('%-d %b %Y')}"
 
     msg = MIMEMultipart("mixed")
     msg["From"]    = GMAIL_ADDRESS
     msg["To"]      = BIOGRAPHY_RECIPIENT_EMAIL
     msg["Subject"] = (
-        f"Your Quill Biography — "
-        f"{period_start.strftime('%-d %b')} – {period_end.strftime('%-d %b %Y')}"
+        f"Your Quill Biography: {chapter_title} ({short_range})"
+        if chapter_title
+        else f"Your Quill Biography — {short_range}"
     )
 
     body = _HTML_BODY.format(
@@ -111,6 +114,7 @@ async def deliver(
     period_start: date,
     period_end: date,
     entry_count: int = 0,
+    chapter_title: str | None = None,
 ) -> None:
     """Email the biography PDF to BIOGRAPHY_RECIPIENT_EMAIL.
 
@@ -119,7 +123,8 @@ async def deliver(
     async with aiofiles.open(pdf_path, "rb") as f:
         pdf_bytes = await f.read()
 
-    msg = _build_message(pdf_path, pdf_bytes, period_start, period_end, entry_count)
+    msg = _build_message(pdf_path, pdf_bytes, period_start, period_end, entry_count,
+                         chapter_title=chapter_title)
     size_kb = len(pdf_bytes) // 1024
 
     if MOCK:

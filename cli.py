@@ -53,8 +53,10 @@ def status():
 def process_inbox_cmd():
     """Transcribe voice notes and describe photos without synthesizing."""
     from processor import process_inbox
-    n = asyncio.run(process_inbox())
-    console.print(f"Processed [bold]{n}[/bold] file(s).")
+    count, failed = asyncio.run(process_inbox())
+    console.print(f"Processed [bold]{count}[/bold] file(s).")
+    if failed:
+        console.print(f"[yellow]⚠️  {len(failed)} file(s) could not be processed — check logs/quill.log[/yellow]")
 
 
 @cli.command()

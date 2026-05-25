@@ -100,6 +100,7 @@ async def test_preview_handles_synthesis_error(update):
         await bot.handle_preview(update, MagicMock())  # must not raise
     all_text = " ".join(c[0][0] for c in update.message.reply_text.call_args_list)
     assert "went wrong" in all_text
+    assert "logs/" not in all_text  # error message must not reference log files
 
 
 async def test_preview_blocked_for_unauthorized_chat(monkeypatch):
@@ -111,6 +112,17 @@ async def test_preview_blocked_for_unauthorized_chat(monkeypatch):
     u.message.reply_text = AsyncMock()
     await bot.handle_preview(u, MagicMock())
     u.message.reply_text.assert_not_called()
+
+
+# ── /start ───────────────────────────────────────────────────────────────────
+
+async def test_start_lists_preview_with_description(update):
+    await bot.handle_start(update, MagicMock())
+    reply = update.message.reply_text.call_args[0][0]
+    assert "/preview" in reply
+    # Must have a description alongside the command, not just list commands bare
+    preview_idx = reply.index("/preview")
+    assert "—" in reply[preview_idx:preview_idx + 40] or "draft" in reply[preview_idx:preview_idx + 40]
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────

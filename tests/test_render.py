@@ -26,7 +26,7 @@ def test_fill_template_injects_content(period):
 def test_fill_template_injects_username(period):
     start, end = period
     result = _fill_template(CONTENT_HTML, start, end, entry_count=5)
-    user = os.getenv("USER_NAME", "Alex Rivera")
+    user = os.getenv("USER_NAME", "Your Name")
     assert user in result
 
 
