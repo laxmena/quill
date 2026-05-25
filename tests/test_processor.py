@@ -260,9 +260,9 @@ async def test_run_pipeline_commit_false_does_not_archive_or_update_state(
     state = load_state()
     assert state["last_run_date"] is None
     assert state["biography_count"] == 0
-    # Intermediate content.html must be deleted so it doesn't contaminate prior-chapter context
+    # No content.html must remain in biographies/ (written to a tempfile outside it)
     content_files = list(tmp_biographies.glob("*_content.html"))
-    assert content_files == [], f"content.html left behind: {content_files}"
+    assert content_files == [], f"content.html left in biographies/: {content_files}"
 
 
 async def test_run_pipeline_raises_valueerror_for_empty_inbox(

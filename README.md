@@ -303,14 +303,14 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 111 tests across 10 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 112 tests across 10 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/
   conftest.py            shared fixtures + QUILL_MOCK setup
   test_transcribe.py     4 tests
   test_describe.py       5 tests
-  test_synthesize.py     17 tests
+  test_synthesize.py     18 tests
   test_render.py         9 tests
   test_deliver.py        9 tests
   test_processor.py      23 tests

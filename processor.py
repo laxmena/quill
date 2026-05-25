@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -133,11 +134,32 @@ async def run_pipeline(
 
     await process_inbox(inbox_dir=inbox_dir)
 
-    content_path, entry_count = await synthesize_and_save(
-        period_start, period_end,
-        inbox_dir=inbox_dir,
-        biographies_dir=biographies_dir,
-    )
+    if commit:
+        content_path, entry_count = await synthesize_and_save(
+            period_start, period_end,
+            inbox_dir=inbox_dir,
+            biographies_dir=biographies_dir,
+        )
+    else:
+        # Preview mode: synthesize to a tempfile outside biographies/ so
+        # _load_prior_chapter's glob never finds this draft in future real runs.
+        from synthesize import (  # noqa: PLC0415
+            collect_entries as _collect_entries,
+            synthesize as _synthesize,
+            _load_prior_chapter,
+        )
+        biographies_dir.mkdir(exist_ok=True)
+        prior_html = await _load_prior_chapter(biographies_dir, current_end=period_end)
+        entries = await _collect_entries(since=period_start, until=period_end, inbox_dir=inbox_dir)
+        if not entries:
+            raise ValueError("no entries found for the given period")
+        html = await _synthesize(entries, period_start, period_end, prior_html=prior_html)
+        entry_count = len(entries)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix="_content.html", encoding="utf-8", delete=False
+        ) as tf:
+            tf.write(html)
+            content_path = Path(tf.name)
 
     # Extract the chapter title Claude generated so we can use it in the email subject.
     chapter_title: str | None = None
@@ -155,8 +177,6 @@ async def run_pipeline(
     )
 
     if not commit:
-        # Remove the intermediate content file so it doesn't pollute the
-        # prior-chapter context for future real pipeline runs.
         content_path.unlink(missing_ok=True)
         logger.info("pipeline (preview) complete → %s", pdf_path.name)
         return html_path, pdf_path

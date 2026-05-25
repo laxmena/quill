@@ -32,7 +32,7 @@ def status():
     kinds = {"note": 0, "voice": 0, "photo": 0}
     for f in items:
         parts = f.stem.split("_")
-        k = parts[2] if len(parts) >= 3 else ""
+        k = parts[-1] if len(parts) >= 3 else ""
         if k in kinds:
             kinds[k] += 1
 
