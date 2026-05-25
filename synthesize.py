@@ -15,7 +15,7 @@ load_dotenv()
 logger = logging.getLogger("quill.synthesize")
 
 MOCK      = os.getenv("QUILL_MOCK", "").lower() in ("1", "true")
-USER_NAME = os.getenv("USER_NAME", "Lakshmanan Meiyappan")
+USER_NAME = os.getenv("USER_NAME", "Your Name")
 
 BASE_DIR        = Path(__file__).parent
 INBOX_DIR       = BASE_DIR / "inbox"

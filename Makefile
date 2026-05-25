@@ -1,6 +1,8 @@
 .PHONY: setup test lint
 
 setup:
+	@echo "Installing Python dependencies..."
+	pip install -r requirements.txt
 	@echo "Creating runtime directories..."
 	mkdir -p inbox processed biographies logs fonts
 	touch logs/quill.log

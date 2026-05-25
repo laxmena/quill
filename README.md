@@ -100,28 +100,24 @@ source .venv/bin/activate        # macOS / Linux
 # .venv\Scripts\activate         # Windows
 ```
 
-**3. Install dependencies**
-
-```bash
-pip install -r requirements.txt
-playwright install chromium
-```
-
-**4. Create runtime directories and configure**
+**3. Install dependencies and set up**
 
 ```bash
 make setup
 ```
 
-This creates all required directories (`inbox/`, `processed/`, `biographies/`, `logs/`, `fonts/`), copies `.env.template` → `.env`, and installs the Playwright Chromium browser. Then open `.env` and fill in your keys.
+This installs all Python dependencies, creates the required runtime directories (`inbox/`, `processed/`, `biographies/`, `logs/`, `fonts/`), copies `.env.template` → `.env`, and installs the Playwright Chromium browser in one step.
 
-Alternatively, do it manually:
+Then open `.env` and fill in your keys.
+
+**Prefer manual steps?**
 
 ```bash
+pip install -r requirements.txt
+playwright install chromium
 mkdir -p inbox processed biographies logs fonts
 touch logs/quill.log
 cp .env.template .env
-playwright install chromium
 ```
 
 ---
@@ -374,6 +370,29 @@ The HTML version of the biography also renders at A4 dimensions in a browser via
 ---
 
 ## Troubleshooting
+
+**Running Quill as a background service**
+
+On Linux with systemd, create `/etc/systemd/system/quill-bot.service`:
+
+```ini
+[Unit]
+Description=Quill Telegram Bot
+After=network.target
+
+[Service]
+WorkingDirectory=/home/you/quill
+ExecStart=/home/you/quill/.venv/bin/python bot.py
+Restart=always
+EnvironmentFile=/home/you/quill/.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Create a matching `quill-scheduler.service` for `cli.py start`. Then `sudo systemctl enable --now quill-bot quill-scheduler`.
+
+On macOS use a launchd plist, or simply run both in a `tmux` session.
 
 **Biographies never arrive**
 Start both processes: `python bot.py` (in one terminal) and `python cli.py start` (in another). The scheduler runs at `PROCESSING_HOUR` each day and only sends a biography when `BIOGRAPHY_PERIOD_DAYS` have elapsed.

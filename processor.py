@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -129,6 +130,16 @@ async def run_pipeline(
         biographies_dir=biographies_dir,
     )
 
+    # Extract the chapter title Claude generated so we can use it in the email subject.
+    chapter_title: str | None = None
+    try:
+        raw = content_path.read_text(encoding="utf-8")
+        m = re.search(r"<h2[^>]*>(.*?)</h2>", raw, re.IGNORECASE | re.DOTALL)
+        if m:
+            chapter_title = re.sub(r"<[^>]+>", "", m.group(1)).strip() or None
+    except Exception:
+        pass
+
     html_path, pdf_path = await render_from_file(
         content_path, period_start, period_end, entry_count,
         biographies_dir=biographies_dir,
@@ -144,7 +155,8 @@ async def run_pipeline(
     save_state(state)
 
     if deliver_email:
-        await deliver(pdf_path, period_start, period_end, entry_count)
+        await deliver(pdf_path, period_start, period_end, entry_count,
+                      chapter_title=chapter_title)
 
     logger.info("pipeline complete → %s", pdf_path.name)
 
@@ -263,6 +275,13 @@ async def start_scheduler() -> None:
 
         try:
             await run_pipeline(period_start, period_end)
+        except ValueError as exc:
+            # Raised by synthesize() when the inbox is empty for the period.
+            logger.info("quiet period — no entries to synthesize: %s", exc)
+            await notify_owner(
+                "No entries were captured this period — nothing to weave into a chapter. "
+                "Add some notes and I'll be ready to write your next one."
+            )
         except Exception:
             logger.exception("pipeline failed")
             await notify_owner(

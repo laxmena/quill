@@ -49,6 +49,21 @@ def test_build_message_subject_contains_year(pdf_file, period):
     assert msg["Subject"].startswith("Your Quill Biography")
 
 
+def test_build_message_subject_includes_chapter_title(pdf_file, period):
+    start, end = period
+    msg = _build_message(pdf_file, b"%PDF mock", start, end, entry_count=7,
+                         chapter_title="A Season of Small Victories")
+    assert "A Season of Small Victories" in msg["Subject"]
+    assert "2024" in msg["Subject"]
+
+
+def test_build_message_subject_falls_back_without_title(pdf_file, period):
+    start, end = period
+    msg = _build_message(pdf_file, b"%PDF mock", start, end, entry_count=7,
+                         chapter_title=None)
+    assert "Your Quill Biography —" in msg["Subject"]
+
+
 def test_build_message_has_html_body_and_pdf(pdf_file, period):
     start, end = period
     msg = _build_message(pdf_file, b"%PDF mock", start, end, entry_count=7)

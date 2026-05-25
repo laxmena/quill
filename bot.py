@@ -26,7 +26,7 @@ load_dotenv()
 BOT_TOKEN             = os.getenv("TELEGRAM_BOT_TOKEN", "")
 WEBHOOK_URL           = os.getenv("TELEGRAM_WEBHOOK_URL", "")
 WEBHOOK_SECRET        = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
-USER_NAME             = os.getenv("USER_NAME", "Lakshmanan Meiyappan")
+USER_NAME             = os.getenv("USER_NAME", "Your Name")
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
 PORT                  = 8443
 
@@ -88,7 +88,11 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "I'm Quill, your personal historian. Send me voice notes, photos, or "
         "text throughout your days and every two weeks I'll weave them into a "
         "biography chapter delivered to your inbox.\n\n"
-        "Commands: /status  /preview  /delete-last  /help\n\n"
+        "Commands:\n"
+        "  /preview      — read a draft chapter right now\n"
+        "  /status       — see what's in your chronicle\n"
+        "  /delete-last  — remove the last thing you sent\n"
+        "  /help         — full guide\n\n"
         "Privacy: your voice notes are transcribed by OpenAI Whisper, photos "
         "described by GPT-4o, and entries synthesised into prose by Claude. "
         "Everything runs on your own server."
@@ -151,6 +155,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await voice_file.download_to_drive(filepath)
     except Exception:
         logger.exception("failed to save voice note")
+        filepath.unlink(missing_ok=True)
         await update.message.reply_text(
             "I had trouble saving that voice note — could you try again? 🎙"
         )
@@ -169,6 +174,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await photo_file.download_to_drive(filepath)
     except Exception:
         logger.exception("failed to save photo")
+        filepath.unlink(missing_ok=True)
         await update.message.reply_text(
             "I had trouble saving that photo — could you try again? 📷"
         )
@@ -220,8 +226,8 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception:
         logger.exception("/preview failed")
         await update.message.reply_text(
-            "Something went wrong while composing your preview. "
-            "Check logs/quill.log for details."
+            "Something went wrong while composing your preview — try again in a moment. "
+            "Your notes are all safe."
         )
 
 

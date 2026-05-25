@@ -12,7 +12,7 @@ load_dotenv()
 
 logger = logging.getLogger("quill.render")
 
-USER_NAME = os.getenv("USER_NAME", "Lakshmanan Meiyappan")
+USER_NAME = os.getenv("USER_NAME", "Your Name")
 
 BASE_DIR        = Path(__file__).parent
 TEMPLATES_DIR   = BASE_DIR / "templates"
