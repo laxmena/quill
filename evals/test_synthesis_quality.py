@@ -11,7 +11,7 @@ Metrics are appended to logs/eval_history.jsonl for drift tracking over time.
 import json
 import os
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -60,7 +60,8 @@ async def _call_claude(fixture: dict) -> str:
         plain = re.sub(r"<[^>]+>", " ", prior_html)
         prior_text = re.sub(r"[ \t]+", " ", plain).strip()
 
-    user_name = os.getenv("USER_NAME", "Your Name")
+    # Prefer fixture-level user_name so prior_html and system prompt are coherent
+    user_name = fixture.get("user_name") or os.getenv("USER_NAME", "Your Name")
     system    = _SYSTEM.format(name=user_name.split()[0])
     prompt    = _build_prompt(entries, start, end, prior_text=prior_text)
     model     = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
@@ -79,7 +80,7 @@ def _record_metrics(fixture_id: str, metrics: dict, model: str) -> None:
     """Append a metrics record to logs/eval_history.jsonl."""
     LOGS_DIR.mkdir(exist_ok=True)
     record = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "fixture": fixture_id,
         "model": model,
         **metrics,
@@ -202,9 +203,10 @@ async def test_continuity_no_reintroduction():
 
     # Continuity check: "Rathna" should not be introduced as if new.
     # The prior chapter already established her. A re-introduction looks like
-    # "Rathna, his [partner/friend/colleague]" — a parenthetical gloss.
+    # "Rathna, his partner", "Rathna — his colleague", "Rathna (his friend)",
+    # "Rathna: his collaborator", etc.
     import re
-    reintro_pattern = r"Rathna,?\s+(?:his|her|their)\s+\w+"
+    reintro_pattern = r"Rathna\W{0,5}(?:his|her|their)\s+\w+"
     assert not re.search(reintro_pattern, html, re.IGNORECASE), (
         "Continuity failure: Rathna appears to be re-introduced despite being "
         "established in the prior chapter"

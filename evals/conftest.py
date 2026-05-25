@@ -11,13 +11,6 @@ import os
 import pytest
 
 
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers",
-        "eval: LLM evaluation tests — require ANTHROPIC_API_KEY, not run by default",
-    )
-
-
 @pytest.fixture(autouse=True, scope="session")
 def require_real_api_key():
     if not os.getenv("ANTHROPIC_API_KEY"):

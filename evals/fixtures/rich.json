@@ -68,7 +68,7 @@
   ],
   "assertions": {
     "min_words": 300,
-    "max_words": 900,
+    "max_words": 800,
     "max_h3": 3,
     "max_blockquote": 1,
     "max_moment": 1

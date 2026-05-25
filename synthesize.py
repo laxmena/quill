@@ -210,7 +210,7 @@ def _log_synthesis_metrics(html: str, entry_count: int) -> None:
     wc    = len(plain.split())
     h3    = len(re.findall(r"<h3[\s>]", html, re.IGNORECASE))
     bq    = len(re.findall(r"<blockquote[\s>]", html, re.IGNORECASE))
-    mom   = len(re.findall(r'class="moment"', html))
+    mom   = len(re.findall(r"class=[\"']moment[\"']", html))
     ratio = round(wc / entry_count, 1) if entry_count else 0
     logger.info(
         "synthesis metrics — entries=%d words=%d h3=%d blockquote=%d moment=%d "

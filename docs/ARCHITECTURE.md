@@ -48,7 +48,7 @@ Quill is a single-machine Python application structured as a linear pipeline. Ea
                                ▼
                     ┌──────────────────────┐
                     │    synthesize.py      │
-                    │    Claude Opus        │
+                    │   claude-opus-4-7     │
                     │    .txt × N →         │
                     │    _content.html      │
                     └──────────┬───────────┘
@@ -88,13 +88,13 @@ Quill is a single-machine Python application structured as a linear pipeline. Ea
 - **Webhook** — Telegram POSTs updates to `https://<WEBHOOK_URL>/<BOT_TOKEN>`. Requires a public HTTPS URL. The bot token is used as the URL path to prevent unauthenticated POSTs.
 - **Polling** — Active when `TELEGRAM_WEBHOOK_URL` is not set. Works on any machine without a public URL.
 
-**File naming:**
+**File naming:** `YYYY-MM-DD_HHMMSS_{hex6}_{kind}.{ext}` — the 6-character hex token prevents collisions when two messages arrive in the same second.
 
 | Message type | Saved as |
 |---|---|
-| Text | `YYYY-MM-DD_HHMMSS_note.txt` |
-| Voice | `YYYY-MM-DD_HHMMSS_voice.ogg` |
-| Photo | `YYYY-MM-DD_HHMMSS_photo.jpg` (highest resolution `photo[-1]`) |
+| Text | `YYYY-MM-DD_HHMMSS_{hex6}_note.txt` |
+| Voice | `YYYY-MM-DD_HHMMSS_{hex6}_voice.ogg` |
+| Photo | `YYYY-MM-DD_HHMMSS_{hex6}_photo.jpg` (highest resolution `photo[-1]`) |
 
 **Commands handled:**
 - `/start` — welcome message with command descriptions and privacy disclosure
@@ -176,13 +176,24 @@ await synthesize_and_save(period_start, period_end, ...) -> tuple[Path, int]
 
 **`collect_entries` logic:**
 - Globs `inbox/*.txt`
-- Parses `YYYY-MM-DD_HHMMSS_kind.txt` filenames to extract timestamp and kind
+- Parses `YYYY-MM-DD_HHMMSS_{hex6}_kind.txt` filenames (3- or 4-part stem) to extract timestamp and kind
 - Filters to the requested date range
 - Skips empty files and unknown kinds
 - Returns entries sorted chronologically
 
 **Claude prompt:**
 The system prompt instructs Claude to write in the voice of a Bloomsbury literary biographer — third person, evocative, attentive to texture. It specifies the exact HTML elements to use (`<h2>`, `<p>`, `<blockquote>`, `<div class="moment">`, `<div class="divider">`) so the output slots directly into `bloomsbury.html` without post-processing.
+
+Five craft principles follow the output rules to control verbosity and interpretive tone:
+- **Select, don't cover** — 2–3 vivid moments per chapter, not all entries
+- **Show, don't interpret** — render scenes; don't explain what details reveal about the subject
+- **Earn your sections** — `<h3>` only for genuine thematic shifts (≤3 per chapter)
+- **Sparing use of `<blockquote>` and `<div class="moment">`** — at most once each per chapter
+- **Length target** — 60–80 words per entry; hard cap of 800 words regardless of entry count
+
+`max_tokens` is set to 2048 (≈1500 words headroom above the 800-word cap).
+
+**Metrics logging:** After every synthesis call, `_log_synthesis_metrics()` logs `entries`, `words`, `h3`, `blockquote`, `moment`, and `words_per_entry` to `quill.log` for runtime drift monitoring.
 
 **Output:** Saves inner HTML to `biographies/YYYY-MM-DD_content.html`. Returns `(path, entry_count)`.
 
@@ -348,10 +359,11 @@ processed/2024-05-10_150000_photo.txt
 processed/2024-05-10_162200_note.txt
 ```
 
-**Naming convention:** `YYYY-MM-DD_HHMMSS_{kind}.{ext}`
+**Naming convention:** `YYYY-MM-DD_HHMMSS_{hex6}_{kind}.{ext}`
 
+- `hex6` is a 6-character `secrets.token_hex(3)` suffix that prevents stem collisions when two messages arrive in the same second
 - `kind` ∈ `{note, voice, photo}`
-- Sidecar `.txt` files always share the stem of the source media file
+- Sidecar `.txt` files always share the full stem of the source media file
 - `synthesize.py` only reads `.txt` files — it never touches raw media
 - `archive_inbox` moves all files whose date ≤ `period_end`
 
@@ -404,21 +416,52 @@ processed/2024-05-10_162200_note.txt
 
 ## Testing Strategy
 
-The test suite has 109 tests across 10 modules. All tests run with `QUILL_MOCK=true` (set in `conftest.py` before any import) so no real API calls, network connections, or SMTP sessions occur.
+The test suite has 126 tests across 11 modules. All tests run with `QUILL_MOCK=true` (set in `conftest.py` before any import) so no real API calls, network connections, or SMTP sessions occur.
 
 | File | Tests | What it covers |
 |---|---|---|
 | `test_transcribe.py` | 4 | Return type, file creation, content, idempotency |
 | `test_describe.py` | 5 | Return type, file creation, PNG/JPEG extensions |
-| `test_synthesize.py` | 17 | Entry parsing, date filtering, empty/unknown kinds, synthesis, save, continuity |
+| `test_synthesize.py` | 19 | Entry parsing, date filtering, prompt structure, empty/unknown kinds, synthesis, save, continuity |
 | `test_render.py` | 9 | Template substitution, HTML validity, file creation, PDF creation |
 | `test_deliver.py` | 9 | Mock path, SMTP not called, credential validation, message structure, chapter title |
 | `test_processor.py` | 23 | Inbox processing, archiving, scheduler timing, state persistence, end-to-end pipeline |
-| `test_retries.py` | 6 | Retry logic, backoff, timeout, cancellation |
+| `test_retries.py` | 7 | Retry logic, backoff, timeout, cancellation, zero-attempts guard |
 | `test_notify.py` | 4 | Telegram notification, error suppression |
-| `test_bot_preview.py` | 22 | All bot handlers: preview, status, delete-last, text, voice, photo, help, unknown |
+| `test_bot_preview.py` | 23 | All bot handlers: preview, status, delete-last, text, voice, photo, help, unknown |
 | `test_cli.py` | 10 | CLI commands: status, set-webhook, set-commands, process-inbox |
+| `test_eval_helpers.py` | 12 | word_count, tag_count, moment_count, parse_metrics, check_html_structure |
 
 **Playwright** is replaced by a `mock_playwright` fixture in `conftest.py` that intercepts `render.async_playwright` and writes `b"%PDF-1.4 mock"` to disk without launching a browser.
 
 **`monkeypatch.setattr`** is used to test real-mode branches (e.g., `deliver.MOCK = False`) without changing the environment.
+
+---
+
+## Eval Harness
+
+`evals/` contains an offline LLM quality suite that tests biography output against real Claude. It lives outside `tests/` so it is not subject to the global `QUILL_MOCK=true` conftest.
+
+```bash
+ANTHROPIC_API_KEY=sk-... pytest evals/ -v
+```
+
+Tests skip automatically if `ANTHROPIC_API_KEY` is not set, so they never block CI.
+
+**Fixtures** (`evals/fixtures/*.json`) define entry sets, expected date ranges, and structural assertion thresholds:
+
+| Fixture | Entries | What it tests |
+|---|---|---|
+| `sparse.json` | 5 | Economy: 180–500 words, ≤3 sections, ≤1 blockquote |
+| `rich.json` | 12 | Hard cap: 300–900 words; selection under volume |
+| `continuity.json` | 3 + prior HTML | No re-introduction of established people/themes |
+
+**Structural assertions** checked on every eval run:
+- Word count within target band (60–80 words/entry guideline, 800-word hard cap)
+- `<h3>` count ≤ 3
+- `<blockquote>` count ≤ 1
+- `<div class="moment">` count ≤ 1
+- Exactly one `<h2>` chapter title
+- Advisory warnings for over-interpretation signal phrases (non-failing)
+
+**Drift tracking:** Each run appends `{timestamp, fixture, model, word_count, h3_count, blockquote_count, moment_count, words_per_entry}` to `logs/eval_history.jsonl`. Plotting `words_per_entry` over time surfaces model drift or prompt regressions before users notice them.
