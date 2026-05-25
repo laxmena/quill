@@ -230,3 +230,21 @@ async def test_run_pipeline_end_to_end(
     state = load_state()
     assert state["last_run_date"] == end.isoformat()
     assert state["biography_count"] == 1
+
+
+async def test_run_pipeline_raises_valueerror_for_empty_inbox(
+    tmp_inbox, tmp_biographies, tmp_processed, tmp_path, period, mock_playwright, monkeypatch
+):
+    """Empty inbox propagates ValueError so start_scheduler can send a friendly message."""
+    start, end = period
+    monkeypatch.setattr("processor.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("processor.LOGS_DIR", tmp_path)
+    # inbox is empty — no .txt entries for synthesize to use
+    with pytest.raises(ValueError, match="no entries"):
+        await run_pipeline(
+            start, end,
+            deliver_email=False,
+            inbox_dir=tmp_inbox,
+            biographies_dir=tmp_biographies,
+            processed_dir=tmp_processed,
+        )
