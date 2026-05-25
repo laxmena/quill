@@ -306,14 +306,14 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 113 tests across 10 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 126 tests across 11 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/
   conftest.py            shared fixtures + QUILL_MOCK setup
   test_transcribe.py     4 tests
   test_describe.py       5 tests
-  test_synthesize.py     18 tests
+  test_synthesize.py     19 tests
   test_render.py         9 tests
   test_deliver.py        9 tests
   test_processor.py      23 tests
@@ -321,7 +321,18 @@ tests/
   test_notify.py         4 tests
   test_bot_preview.py    23 tests
   test_cli.py            10 tests
+  test_eval_helpers.py   12 tests
 ```
+
+### LLM Evals (offline quality checks)
+
+A separate eval suite in `evals/` tests biography quality against real Claude. These require a real API key and are not run by default:
+
+```bash
+ANTHROPIC_API_KEY=sk-... pytest evals/ -v
+```
+
+Three fixtures cover sparse periods (5 entries), rich periods (12 entries), and continuity across chapters. Each eval asserts structural constraints: word count within a target band (60–80 words/entry, max 800), at most 3 `<h3>` sections, at most 1 `<blockquote>`. Results are appended to `logs/eval_history.jsonl` for drift tracking over time.
 
 ---
 
@@ -338,6 +349,8 @@ quill/
 ├── processor.py        Pipeline orchestrator and daily scheduler
 ├── cli.py              Click CLI — manual controls
 ├── mocks.py            Drop-in mock clients for all external APIs
+├── notify.py           Telegram owner notifications (pipeline events)
+├── retries.py          Async retry helper with exponential backoff
 │
 ├── templates/
 │   └── bloomsbury.html  Typographic PDF template (Bloomsbury style)
@@ -347,22 +360,38 @@ quill/
 ├── processed/          Archived content after biography generation (gitignored)
 ├── biographies/        Generated HTML and PDF files (gitignored)
 ├── logs/
-│   └── quill.log       Runtime log (gitignored)
-│   └── state.json      Scheduler state — last run date, biography count
+│   ├── quill.log            Runtime log (gitignored)
+│   ├── state.json           Scheduler state — last run date, biography count
+│   └── eval_history.jsonl   Eval run metrics for drift tracking (gitignored)
 │
-├── tests/
+├── tests/              Unit/integration tests (QUILL_MOCK=true, no real API calls)
 │   ├── conftest.py
 │   ├── test_transcribe.py
 │   ├── test_describe.py
 │   ├── test_synthesize.py
 │   ├── test_render.py
 │   ├── test_deliver.py
-│   └── test_processor.py
+│   ├── test_processor.py
+│   ├── test_retries.py
+│   ├── test_notify.py
+│   ├── test_bot_preview.py
+│   └── test_cli.py
+│
+├── evals/              LLM quality evals (require real ANTHROPIC_API_KEY)
+│   ├── conftest.py
+│   ├── eval_helpers.py
+│   ├── test_synthesis_quality.py
+│   └── fixtures/
+│       ├── sparse.json
+│       ├── rich.json
+│       └── continuity.json
 │
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   └── ARCHITECTURE.html
 │
+├── CITATION.cff
+├── LICENSE
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pytest.ini

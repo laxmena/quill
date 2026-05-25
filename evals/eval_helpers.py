@@ -12,7 +12,7 @@ def tag_count(html: str, tag: str) -> int:
 
 
 def moment_count(html: str) -> int:
-    return len(re.findall(r'class="moment"', html))
+    return len(re.findall(r"class=[\"']moment[\"']", html))
 
 
 def parse_metrics(html: str, entry_count: int) -> dict:
