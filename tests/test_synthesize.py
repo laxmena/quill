@@ -30,6 +30,15 @@ async def test_collect_parses_voice_and_photo(tmp_inbox):
     assert {e.kind for e in entries} == {"voice", "photo"}
 
 
+async def test_collect_parses_new_format_with_hex_suffix(tmp_inbox):
+    """Files saved by ts() now have a 4-part stem; kind is the last segment."""
+    (tmp_inbox / "2024-05-10_143022_a1b2c3_note.txt").write_text("New format entry.")
+    entries = await collect_entries(date(2024, 5, 1), date(2024, 5, 14), inbox_dir=tmp_inbox)
+    assert len(entries) == 1
+    assert entries[0].kind == "note"
+    assert entries[0].text == "New format entry."
+
+
 async def test_collect_filters_by_date(tmp_inbox):
     (tmp_inbox / "2024-04-30_120000_note.txt").write_text("before range")
     (tmp_inbox / "2024-05-07_120000_note.txt").write_text("inside range")

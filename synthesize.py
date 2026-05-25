@@ -138,7 +138,7 @@ async def collect_entries(
             continue
         if not (since <= ts.date() <= until):
             continue
-        kind = parts[2]
+        kind = parts[-1]
         if kind not in ("note", "voice", "photo"):
             continue
         async with aiofiles.open(txt_path, encoding="utf-8") as f:

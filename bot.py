@@ -138,7 +138,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     pending = 0  # media files not yet transcribed/captioned (no .txt companion)
     for f in items:
         parts = f.stem.split("_")
-        k = parts[2] if len(parts) >= 3 else ""
+        k = parts[-1] if len(parts) >= 3 else ""
         if k in kinds:
             kinds[k] += 1
         if f.suffix in (".ogg", ".jpg", ".jpeg", ".png") and not f.with_suffix(".txt").exists():
@@ -171,7 +171,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     biography_count = state.get("biography_count", 0)
     if last_run_str:
         last_run   = date.fromisoformat(last_run_str)
-        days_since = (date.today() - last_run).days
+        days_since = max(0, (date.today() - last_run).days)
         days_until = max(0, BIOGRAPHY_PERIOD_DAYS - days_since)
         plural_c   = "s" if biography_count != 1 else ""
         if days_until == 0:
@@ -185,9 +185,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             + next_line
         )
     else:
-        days_until = BIOGRAPHY_PERIOD_DAYS
-        plural_d = "s" if days_until != 1 else ""
-        bio_line = f"No chapters yet — first one in {days_until} day{plural_d}."
+        bio_line = "No chapters yet — first one compiling tonight."
 
     await update.message.reply_text(
         f"📬 {breakdown} waiting to be woven\n\n{bio_line}"
@@ -341,6 +339,7 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "  🖊 Text — anything worth remembering\n\n"
         f"Every {BIOGRAPHY_PERIOD_DAYS} days I weave everything into a biography "
         "chapter and deliver it to your inbox.\n\n"
+        "<b>Nudge</b>: if you go quiet for a few days I'll send a gentle reminder.\n\n"
         "<b>Privacy</b>: voice → OpenAI Whisper · photos → GPT-4o · entries → Claude",
         parse_mode="HTML",
     )
@@ -374,14 +373,16 @@ async def handle_delete_last(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     parts      = latest_stem.split("_")
     kind_map   = {"note": "note", "voice": "voice note", "photo": "photo"}
-    kind_label = kind_map.get(parts[2] if len(parts) > 2 else "", "item")
+    kind_label = kind_map.get(parts[-1] if len(parts) > 1 else "", "item")
     try:
         dt_str = _stem_dt(latest_stem).strftime("%-d %B at %H:%M")
     except Exception:
         dt_str = "just now"
 
+    n_files = len(latest_files)
+    caption_note = " (including caption)" if n_files > 1 else ""
     await update.message.reply_text(
-        f"Deleted: {kind_label} from {dt_str}. It won't appear in your biography. 🗑"
+        f"Deleted: {kind_label} from {dt_str}{caption_note}. It won't appear in your biography. 🗑"
     )
     logger.info("/delete-last — removed %d file(s) with stem %s",
                 len(latest_files), latest_stem)
