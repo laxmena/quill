@@ -71,7 +71,11 @@ def run(from_date, to_date, no_email):
     end   = to_date.date()   if to_date   else date.today()
     start = from_date.date() if from_date else end - timedelta(days=BIOGRAPHY_PERIOD_DAYS - 1)
     console.print(f"Running pipeline [bold]{start}[/bold] → [bold]{end}[/bold] …")
-    html_path, pdf_path = asyncio.run(run_pipeline(start, end, deliver_email=not no_email))
+    try:
+        html_path, pdf_path = asyncio.run(run_pipeline(start, end, deliver_email=not no_email))
+    except ValueError as exc:
+        console.print(f"[yellow]Nothing to synthesize: {exc}[/yellow]")
+        raise SystemExit(1)
     console.print("[green]✓ Done[/green]")
     console.print(f"  HTML: {html_path}")
     console.print(f"  PDF:  {pdf_path}")
@@ -81,13 +85,21 @@ def run(from_date, to_date, no_email):
 @click.option("--from", "from_date", type=click.DateTime(formats=["%Y-%m-%d"]), default=None)
 @click.option("--to",   "to_date",   type=click.DateTime(formats=["%Y-%m-%d"]), default=None)
 def preview(from_date, to_date):
-    """Synthesize and render without sending email."""
+    """Synthesize and render without sending email, then open the HTML in a browser."""
+    import webbrowser
     from processor import run_pipeline
     end   = to_date.date()   if to_date   else date.today()
     start = from_date.date() if from_date else end - timedelta(days=BIOGRAPHY_PERIOD_DAYS - 1)
     console.print(f"Previewing [bold]{start}[/bold] → [bold]{end}[/bold] …")
-    html_path, pdf_path = asyncio.run(run_pipeline(start, end, deliver_email=False))
-    console.print(f"[green]✓ Done[/green]  open {html_path}")
+    try:
+        html_path, pdf_path = asyncio.run(run_pipeline(start, end, deliver_email=False))
+    except ValueError as exc:
+        console.print(f"[yellow]Nothing to synthesize: {exc}[/yellow]")
+        raise SystemExit(1)
+    console.print(f"[green]✓ Done[/green]")
+    console.print(f"  HTML: {html_path}")
+    console.print(f"  PDF:  {pdf_path}")
+    webbrowser.open(str(html_path))
 
 
 @cli.command("set-webhook")
@@ -115,6 +127,36 @@ def set_webhook():
     with urllib.request.urlopen(req) as resp:
         result = _json.loads(resp.read())
     console.print(result)
+
+
+@cli.command("set-commands")
+def set_commands():
+    """Register the bot command menu with Telegram for native autocomplete."""
+    import json as _json
+    import urllib.request
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        console.print("[red]TELEGRAM_BOT_TOKEN must be set in .env[/red]")
+        raise SystemExit(1)
+    commands = [
+        {"command": "preview",     "description": "Read a draft chapter right now"},
+        {"command": "status",      "description": "See what's in your chronicle"},
+        {"command": "delete-last", "description": "Remove the last thing you sent"},
+        {"command": "help",        "description": "List all commands"},
+    ]
+    payload = _json.dumps({"commands": commands}).encode()
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/setMyCommands",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as resp:
+        result = _json.loads(resp.read())
+    if result.get("ok"):
+        console.print("[green]✓ Command menu registered with Telegram[/green]")
+    else:
+        console.print(f"[red]Failed: {result}[/red]")
 
 
 @cli.command()

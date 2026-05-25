@@ -28,7 +28,7 @@ WEBHOOK_URL           = os.getenv("TELEGRAM_WEBHOOK_URL", "")
 WEBHOOK_SECRET        = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 USER_NAME             = os.getenv("USER_NAME", "Your Name")
 BIOGRAPHY_PERIOD_DAYS = int(os.getenv("BIOGRAPHY_PERIOD_DAYS", "14"))
-PORT                  = 8443
+PORT                  = int(os.getenv("PORT", "8443"))
 
 _raw_chat_id = os.getenv("TELEGRAM_ALLOWED_CHAT_ID", "")
 ALLOWED_CHAT_ID: int | None = int(_raw_chat_id) if _raw_chat_id.lstrip("-").isdigit() else None
@@ -73,9 +73,35 @@ def _allowed(update: Update) -> bool:
     return False
 
 
-def last_biography() -> str | None:
-    pdfs = sorted(BIOGRAPHIES_DIR.glob("*.pdf"))
-    return pdfs[-1].stem if pdfs else None
+# ── Preview rendering ─────────────────────────────────────────────────────────
+
+def _html_to_preview(html: str) -> str:
+    """Convert biography HTML to structured plain text suitable for Telegram."""
+    # Chapter title → bold-style marker
+    html = re.sub(r"<h2[^>]*>(.*?)</h2>",
+                  lambda m: f"\n✦ {re.sub('<[^>]+>', '', m.group(1)).strip()} ✦\n",
+                  html, flags=re.DOTALL | re.IGNORECASE)
+    # Section headings
+    html = re.sub(r"<h3[^>]*>(.*?)</h3>",
+                  lambda m: f"\n— {re.sub('<[^>]+>', '', m.group(1)).strip()} —\n",
+                  html, flags=re.DOTALL | re.IGNORECASE)
+    # Blockquotes → quoted lines
+    html = re.sub(r"<blockquote[^>]*>(.*?)</blockquote>",
+                  lambda m: f'\n“{re.sub("<[^>]+>", "", m.group(1)).strip()}”\n',
+                  html, flags=re.DOTALL | re.IGNORECASE)
+    # Section dividers
+    html = re.sub(r'<div[^>]*class="divider"[^>]*>.*?</div>',
+                  "\n─ ✦ ─\n", html, flags=re.DOTALL | re.IGNORECASE)
+    # Paragraphs → double newlines
+    html = re.sub(r"<p[^>]*>(.*?)</p>",
+                  lambda m: re.sub("<[^>]+>", "", m.group(1)).strip() + "\n\n",
+                  html, flags=re.DOTALL | re.IGNORECASE)
+    # Strip remaining tags
+    text = re.sub(r"<[^>]+>", "", html)
+    # Normalise whitespace
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text
 
 
 # ── Command handlers ──────────────────────────────────────────────────────────
@@ -140,8 +166,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not _allowed(update):
         return
     filepath = INBOX_DIR / f"{ts()}_note.txt"
-    async with aiofiles.open(filepath, "w", encoding="utf-8") as f:
-        await f.write(update.message.text)
+    try:
+        async with aiofiles.open(filepath, "w", encoding="utf-8") as f:
+            await f.write(update.message.text)
+    except Exception:
+        logger.exception("failed to save text note")
+        filepath.unlink(missing_ok=True)
+        await update.message.reply_text(
+            "I had trouble saving that note — could you try again? 🖊"
+        )
+        return
     logger.info("saved text  → %s", filepath.name)
     await update.message.reply_text("Noted. I'll weave it in. 🖊")
 
@@ -184,9 +218,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     caption = getattr(update.message, "caption", None)
     if caption:
         txt_path = INBOX_DIR / f"{stamp}_photo.txt"
-        async with aiofiles.open(txt_path, "w", encoding="utf-8") as f:
-            await f.write(caption)
-        logger.info("saved caption → %s", txt_path.name)
+        try:
+            async with aiofiles.open(txt_path, "w", encoding="utf-8") as f:
+                await f.write(caption)
+            logger.info("saved caption → %s", txt_path.name)
+        except Exception:
+            logger.exception("failed to save photo caption")
+            txt_path.unlink(missing_ok=True)
+            await update.message.reply_text(
+                "Photo saved, but I had trouble saving your caption — "
+                "send it as a text message and I'll pair them up."
+            )
+            return
         await update.message.reply_text(
             f"Photo and caption added to your chronicle. 📷\n\n\"{caption}\""
         )
@@ -214,15 +257,17 @@ async def handle_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             return
         prior_html = await _load_prior_chapter(BIOGRAPHIES_DIR, current_end=end)
         html = await synthesize(entries, start, end, prior_html=prior_html)
-        # Strip HTML tags and normalise whitespace for plain-text preview
-        text = re.sub(r"<[^>]+>", " ", html)
-        text = re.sub(r"[ \t]+", " ", text)
-        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        text = _html_to_preview(html)
+        days_until = max(0, BIOGRAPHY_PERIOD_DAYS - (end - start).days)
+        plural = "day" if days_until == 1 else "days"
+        header = "📖 Draft chapter preview — the final PDF will be typeset:\n\n"
+        footer = f"\n\n[{days_until} {plural} until your next biography chapter]"
         # Telegram hard-caps messages at 4096 chars
-        if len(text) > 3800:
-            text = text[:3800] + "…\n\n[Full biography arrives in your fortnightly PDF]"
-        await update.message.reply_text(text)
-        logger.info("/preview — sent %d chars to owner", len(text))
+        budget = 4096 - len(header) - len(footer)
+        if len(text) > budget:
+            text = text[:budget - 1] + "…"
+        await update.message.reply_text(header + text + footer)
+        logger.info("/preview — sent %d chars to owner", len(header) + len(text) + len(footer))
     except Exception:
         logger.exception("/preview failed")
         await update.message.reply_text(

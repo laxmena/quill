@@ -141,6 +141,7 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 | `BIOGRAPHY_PERIOD_DAYS` | — | `14` | How many days each biography covers |
 | `PROCESSING_HOUR` | — | `2` | Hour of day (0–23) when the scheduler runs |
 | `NUDGE_AFTER_DAYS` | — | `3` | Days of silence before a gentle capture reminder is sent. Set to `0` to disable. |
+| `PORT` | — | `8443` | Webhook listen port. Open this port in your firewall when using webhook mode. |
 | `QUILL_MOCK` | — | `false` | Set to `true` to simulate all API calls without real keys |
 
 *Not required when `QUILL_MOCK=true`.
@@ -155,7 +156,7 @@ All configuration lives in `.env`. Copy `.env.template` to get started.
 python bot.py
 ```
 
-With `TELEGRAM_WEBHOOK_URL` set, the bot listens for Telegram webhooks on port 8080. Without it, polling mode starts automatically — works anywhere without a public URL.
+With `TELEGRAM_WEBHOOK_URL` set, the bot listens for Telegram webhooks on port 8443 (configurable via `PORT` in `.env`). Without it, polling mode starts automatically — works anywhere without a public URL.
 
 The Rich startup banner shows the active mode:
 
@@ -211,6 +212,7 @@ python cli.py --help
 | `run --from DATE --to DATE` | Run for a specific date range |
 | `preview` | Full pipeline without email (for proofing) |
 | `set-webhook` | Register the Telegram webhook URL with Telegram's API |
+| `set-commands` | Register the bot command menu with Telegram (native `/` autocomplete) |
 | `start` | Start the background scheduler (runs indefinitely) |
 
 **Bot commands**
@@ -285,7 +287,7 @@ Run a specific module's tests:
 pytest tests/test_synthesize.py -v
 ```
 
-The test suite has 92 tests across 8 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
+The test suite has 95+ tests across 9 modules. `conftest.py` sets `QUILL_MOCK=true` before any import, so no real API calls or SMTP connections are made. Playwright is replaced by a fixture that writes a minimal PDF to disk.
 
 ```
 tests/

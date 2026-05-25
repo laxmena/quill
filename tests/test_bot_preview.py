@@ -66,6 +66,34 @@ async def test_preview_strips_html_tags(update):
     assert "A fine morning." in last_reply
 
 
+async def test_preview_renders_h2_as_marked_title(update):
+    """Chapter title (h2) should be visually distinct, not just stripped."""
+    fake_entry = MagicMock()
+    with patch("synthesize.collect_entries", new=AsyncMock(return_value=[fake_entry])), \
+         patch("synthesize.synthesize",
+               new=AsyncMock(return_value="<h2>A Season of Small Victories</h2><p>Prose.</p>")), \
+         patch("synthesize._load_prior_chapter", new=AsyncMock(return_value=None)):
+        await bot.handle_preview(update, MagicMock())
+    last_reply = update.message.reply_text.call_args_list[-1][0][0]
+    assert "A Season of Small Victories" in last_reply
+    # Title must be separated from body prose
+    assert last_reply.index("A Season of Small Victories") < last_reply.index("Prose.")
+
+
+async def test_preview_includes_framing_header_and_footer(update):
+    """Preview must include a draft caveat and a days-until footer."""
+    fake_entry = MagicMock()
+    with patch("synthesize.collect_entries", new=AsyncMock(return_value=[fake_entry])), \
+         patch("synthesize.synthesize", new=AsyncMock(return_value="<p>Some prose.</p>")), \
+         patch("synthesize._load_prior_chapter", new=AsyncMock(return_value=None)):
+        await bot.handle_preview(update, MagicMock())
+    last_reply = update.message.reply_text.call_args_list[-1][0][0]
+    # Header
+    assert "draft" in last_reply.lower() or "preview" in last_reply.lower()
+    # Footer with days countdown
+    assert "day" in last_reply.lower()
+
+
 async def test_preview_uses_prior_chapter(update):
     """Ensure /preview passes prior_html to synthesize (continuity fix)."""
     fake_entry = MagicMock()
@@ -92,7 +120,7 @@ async def test_preview_truncates_long_content(update):
         await bot.handle_preview(update, MagicMock())
     last_reply = update.message.reply_text.call_args_list[-1][0][0]
     assert len(last_reply) <= 4096
-    assert "fortnightly PDF" in last_reply
+    assert "day" in last_reply.lower()  # days-until footer always present
 
 
 async def test_preview_handles_synthesis_error(update):
@@ -179,6 +207,21 @@ async def test_delete_last_empty_inbox(update, tmp_path, monkeypatch):
 
     reply = update.message.reply_text.call_args[0][0]
     assert "empty" in reply
+
+
+# ── handle_text ──────────────────────────────────────────────────────────────
+
+async def test_text_write_error_replies_gracefully(update, tmp_path, monkeypatch):
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    monkeypatch.setattr(bot, "INBOX_DIR", inbox)
+    update.message.text = "A thought."
+
+    with patch("bot.aiofiles.open", side_effect=OSError("disk full")):
+        await bot.handle_text(update, MagicMock())
+
+    reply = update.message.reply_text.call_args[0][0]
+    assert "trouble" in reply.lower() or "try again" in reply.lower()
 
 
 # ── handle_photo caption pairing ──────────────────────────────────────────────

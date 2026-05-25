@@ -97,8 +97,17 @@ Quill is a single-machine Python application structured as a linear pipeline. Ea
 | Photo | `YYYY-MM-DD_HHMMSS_photo.jpg` (highest resolution `photo[-1]`) |
 
 **Commands handled:**
-- `/start` — welcome message
-- `/status` — inbox count + last biography date
+- `/start` — welcome message with command descriptions and privacy disclosure
+- `/status` — inbox count, last biography date, days until next chapter
+- `/preview` — synthesise a draft biography for the current period and return structured plain text
+- `/delete-last` — remove the most recent inbox entry (all files sharing its timestamp stem)
+- `/help` — full command guide with privacy notice
+
+**Message handlers:**
+- `VOICE` — saves `.ogg`, replies with confirmation
+- `PHOTO` — saves `.jpg` + optional caption `.txt`, tip for uncaptioned photos
+- `TEXT` — saves `_note.txt`, replies with confirmation
+- Fallback — any other message type replies with a hint to use voice, photo, or text
 
 **Key dependencies:** `python-telegram-bot==20.7`, `aiofiles`
 
@@ -395,7 +404,7 @@ processed/2024-05-10_162200_note.txt
 
 ## Testing Strategy
 
-The test suite has 51 tests across 6 modules. All tests run with `QUILL_MOCK=true` (set in `conftest.py` before any import) so no real API calls, network connections, or SMTP sessions occur.
+The test suite has 95+ tests across 9 modules. All tests run with `QUILL_MOCK=true` (set in `conftest.py` before any import) so no real API calls, network connections, or SMTP sessions occur.
 
 | File | Tests | What it covers |
 |---|---|---|
