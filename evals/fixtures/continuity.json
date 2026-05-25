@@ -1,0 +1,36 @@
+{
+  "id": "continuity",
+  "description": "3 entries with a prior chapter — tests that people/themes are not re-introduced",
+  "period_start": "2026-05-15",
+  "period_end": "2026-05-28",
+  "prior_html": "<h2>Chapter Four: The Weight of an Abstraction</h2><p>In early May, Alex rose before the household and sat by the window with his coffee, turning over a question about the project abstraction — whether the abstraction at its heart was sound. The street below was empty. The asking was itself a form of work.</p><p>Jordan had cooked a dish cooked from scratch and they ate together slowly, talking about the year ahead. He noted afterward that he felt warm and grounded.</p><p>The new indexing pipeline demo landed well with the team, though he suspected they did not fully grasp what it had taken to get there. The the key insight idea had been the turning point.</p><p>He walked alone to the reservoir trail one morning, needing the silence. Three days later he closed The Idea Factory and sat with a quiet lament about institutions that once had the patience to let ideas breathe.</p>",
+  "entries": [
+    {
+      "timestamp": "2026-05-16T09:00:00",
+      "kind": "voice",
+      "text": "Decided to revisit the project abstraction abstraction with fresh eyes. Spent the morning pulling the design apart on paper — not the code, just the idea. I think the issue is that we conflated two concerns that want to be separate."
+    },
+    {
+      "timestamp": "2026-05-19T20:00:00",
+      "kind": "note",
+      "text": "Jordan heard back about the role she was waiting on. Good news. We celebrated quietly — took a long walk and found a new place for dinner. Nothing dramatic. Just relief, and then food."
+    },
+    {
+      "timestamp": "2026-05-24T11:30:00",
+      "kind": "photo",
+      "text": "Photo taken at the office: the team together after the architecture review. Everyone looked tired but satisfied. It passed."
+    }
+  ],
+  "assertions": {
+    "min_words": 120,
+    "max_words": 380,
+    "max_h3": 2,
+    "max_blockquote": 1,
+    "max_moment": 1,
+    "continuity_checks": [
+      "must not re-introduce Jordan as if new",
+      "must not re-introduce the project abstraction as if new",
+      "should develop themes from prior chapter"
+    ]
+  }
+}

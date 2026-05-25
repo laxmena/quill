@@ -1,0 +1,41 @@
+{
+  "id": "sparse",
+  "description": "5 entries over 14 days — tests economy and selection",
+  "period_start": "2026-05-01",
+  "period_end": "2026-05-14",
+  "prior_html": null,
+  "entries": [
+    {
+      "timestamp": "2026-05-03T07:15:00",
+      "kind": "voice",
+      "text": "Woke up early before everyone else. Made coffee and sat by the window for a while. The street was quiet. I keep thinking about the project abstraction project — whether the abstraction is right or whether we are building something too clever for its own good."
+    },
+    {
+      "timestamp": "2026-05-05T20:30:00",
+      "kind": "note",
+      "text": "Had dinner with Jordan tonight. She cooked a dish cooked from scratch — it turned out perfectly, better than last time. We talked about her work and what the next year might look like for both of us. Felt warm and grounded after."
+    },
+    {
+      "timestamp": "2026-05-08T14:00:00",
+      "kind": "voice",
+      "text": "Long meeting with the team. Demoed the new indexing pipeline feature. People seemed genuinely impressed but I am not sure they understand what it took to get here. The the key insight idea was the key — once that clicked everything else followed."
+    },
+    {
+      "timestamp": "2026-05-10T09:00:00",
+      "kind": "photo",
+      "text": "Photo taken at the hiking trail near the reservoir. Clear morning, light through the trees. Went alone — needed the silence."
+    },
+    {
+      "timestamp": "2026-05-13T22:00:00",
+      "kind": "note",
+      "text": "Finished reading The Idea Factory tonight. Bell Labs feels like a different world — a time when institutions had the patience to let ideas breathe. I wonder if anything like that is possible now."
+    }
+  ],
+  "assertions": {
+    "min_words": 180,
+    "max_words": 500,
+    "max_h3": 3,
+    "max_blockquote": 1,
+    "max_moment": 1
+  }
+}

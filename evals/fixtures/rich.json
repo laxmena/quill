@@ -1,0 +1,76 @@
+{
+  "id": "rich",
+  "description": "12 entries over 14 days — tests selection under pressure, hard word-count cap",
+  "period_start": "2026-06-01",
+  "period_end": "2026-06-14",
+  "prior_html": null,
+  "entries": [
+    {
+      "timestamp": "2026-06-01T08:00:00",
+      "kind": "note",
+      "text": "First day of June. Sat on the balcony with coffee before the heat came in. Felt oddly optimistic."
+    },
+    {
+      "timestamp": "2026-06-02T19:30:00",
+      "kind": "voice",
+      "text": "Good run today — about six kilometers along the river path. Legs felt strong. Head felt clearer afterward, which is why I keep doing it."
+    },
+    {
+      "timestamp": "2026-06-03T14:00:00",
+      "kind": "note",
+      "text": "Reviewed the PR for the new indexing pipeline. Good work from the team. Left detailed comments but nothing blocking."
+    },
+    {
+      "timestamp": "2026-06-04T09:15:00",
+      "kind": "photo",
+      "text": "Morning fog over the city from the top-floor window. The whole skyline was washed out. Rare."
+    },
+    {
+      "timestamp": "2026-06-05T21:00:00",
+      "kind": "note",
+      "text": "Long call with Jordan. She is navigating something difficult at work — a team dynamic that isn't resolving. Listened mostly."
+    },
+    {
+      "timestamp": "2026-06-06T07:30:00",
+      "kind": "voice",
+      "text": "Thinking about scale again this morning. The architecture we chose eighteen months ago is starting to show its limits. Not broken, just visibly constrained. Will need to have that conversation with the team soon."
+    },
+    {
+      "timestamp": "2026-06-07T16:00:00",
+      "kind": "note",
+      "text": "Finished the first draft of the design doc. It took three separate attempts to find the right frame for the problem."
+    },
+    {
+      "timestamp": "2026-06-08T11:00:00",
+      "kind": "photo",
+      "text": "Photo of the whiteboard after the architecture session. Four people, two hours, one clear decision. The room smelled of marker and coffee."
+    },
+    {
+      "timestamp": "2026-06-09T20:00:00",
+      "kind": "voice",
+      "text": "Read for two hours tonight. Nothing in particular — just moved through whatever was at the top of the pile. Needed the absence of screens."
+    },
+    {
+      "timestamp": "2026-06-11T08:30:00",
+      "kind": "note",
+      "text": "Amma called. She asked about work and I gave her the short version. She asked if I was eating properly."
+    },
+    {
+      "timestamp": "2026-06-12T15:00:00",
+      "kind": "voice",
+      "text": "The new deployment went smoothly — first time in a while that nothing caught fire. Sent a note to the team. Small wins deserve acknowledgement."
+    },
+    {
+      "timestamp": "2026-06-14T22:30:00",
+      "kind": "note",
+      "text": "End of a full two weeks. Did not accomplish everything I set out to but got the things that mattered. That feels like enough."
+    }
+  ],
+  "assertions": {
+    "min_words": 300,
+    "max_words": 900,
+    "max_h3": 3,
+    "max_blockquote": 1,
+    "max_moment": 1
+  }
+}
