@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quill — Architecture</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f9f8f6;
+      --surface:   #ffffff;
+      --border:    #e5e2db;
+      --text:      #1a1917;
+      --muted:     #6b6860;
+      --code-bg:   #f3f1ec;
+
+      --capture:   #0e7490;
+      --process:   #7c3aed;
+      --ai:        #c2410c;
+      --render:    #047857;
+      --deliver:   #be185d;
+      --orch:      #374151;
+      --mock:      #92400e;
+    }
+
+    html { font-size: 15px; background: var(--bg); color: var(--text); }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    /* ── Typography ───────────────────────────────────────────────────────── */
+    h1 { font-size: 2rem;   font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin: 48px 0 16px;
+         padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1rem;   font-weight: 600; margin: 24px 0 8px; }
+    p  { margin-bottom: 12px; color: #2d2c2a; }
+    a  { color: var(--capture); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Code ─────────────────────────────────────────────────────────────── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      font-size: 0.82em;
+      background: var(--code-bg);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: #c2410c;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.82em;
+      line-height: 1.6;
+      margin: 16px 0;
+      color: var(--text);
+    }
+
+    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+    /* ── Tables ───────────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.875rem; }
+    th {
+      background: var(--code-bg);
+      text-align: left;
+      padding: 8px 12px;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #faf9f7; }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    .header {
+      margin-bottom: 48px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--text);
+    }
+    .header-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .header-tagline { color: var(--muted); font-size: 1.05rem; margin-top: 4px; }
+
+    /* ── Nav ──────────────────────────────────────────────────────────────── */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      column-count: 2;
+      column-gap: 32px;
+    }
+    .toc-title { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em;
+                 text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+                 column-span: all; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin-bottom: 4px; font-size: 0.875rem; }
+
+    /* ── Pipeline diagram ─────────────────────────────────────────────────── */
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 24px 0;
+      position: relative;
+    }
+
+    .pipeline-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .p-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      flex: 1;
+      position: relative;
+    }
+
+    .p-step-name {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+    }
+
+    .p-step-desc { font-size: 0.78rem; color: var(--muted); }
+    .p-step-service {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    /* colour bands */
+    .p-capture  { border-left: 3px solid var(--capture);  }
+    .p-capture  .p-step-name { color: var(--capture); }
+    .p-capture  .p-step-service { background: #e0f2fe; color: var(--capture); }
+
+    .p-process  { border-left: 3px solid var(--process); }
+    .p-process  .p-step-name { color: var(--process); }
+    .p-process  .p-step-service { background: #ede9fe; color: var(--process); }
+
+    .p-ai       { border-left: 3px solid var(--ai); }
+    .p-ai       .p-step-name { color: var(--ai); }
+    .p-ai       .p-step-service { background: #ffedd5; color: var(--ai); }
+
+    .p-render   { border-left: 3px solid var(--render); }
+    .p-render   .p-step-name { color: var(--render); }
+    .p-render   .p-step-service { background: #d1fae5; color: var(--render); }
+
+    .p-deliver  { border-left: 3px solid var(--deliver); }
+    .p-deliver  .p-step-name { color: var(--deliver); }
+    .p-deliver  .p-step-service { background: #fce7f3; color: var(--deliver); }
+
+    .p-orch     { border-left: 3px solid var(--orch); }
+    .p-orch     .p-step-name { color: var(--orch); }
+    .p-orch     .p-step-service { background: #f3f4f6; color: var(--orch); }
+
+    /* connector arrows */
+    .p-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 3px 0 3px 20px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      gap: 6px;
+    }
+    .p-arrow::before { content: "│"; color: var(--border); }
+    .p-arrow-label { color: var(--muted); font-family: "SF Mono", monospace; font-size: 0.72rem; }
+
+    /* side-by-side process steps */
+    .p-parallel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* ── Module cards ─────────────────────────────────────────────────────── */
+    .module-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin: 16px 0;
+    }
+
+    .module-card h3 {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 1rem;
+      margin: 0 0 4px;
+    }
+
+    .module-card .module-tagline {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── File lifecycle ───────────────────────────────────────────────────── */
+    .lifecycle {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 16px 0;
+    }
+
+    .lc-step {
+      display: flex;
+      gap: 16px;
+      padding: 12px 0;
+      border-left: 2px solid var(--border);
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .lc-step::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      position: absolute;
+      left: -5px;
+      top: 18px;
+    }
+
+    .lc-step:last-child { border-left-color: transparent; }
+
+    .lc-agent {
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: "SF Mono", monospace;
+      color: var(--muted);
+      min-width: 120px;
+      padding-top: 2px;
+    }
+
+    .lc-files { display: flex; flex-direction: column; gap: 3px; }
+    .lc-file {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.78rem;
+      background: var(--code-bg);
+      padding: 2px 8px;
+      border-radius: 3px;
+      display: inline-block;
+      width: fit-content;
+    }
+    .lc-file.new  { border-left: 2px solid #16a34a; }
+    .lc-file.move { border-left: 2px solid #d97706; }
+    .lc-file.out  { border-left: 2px solid var(--deliver); }
+
+    /* ── Callout ──────────────────────────────────────────────────────────── */
+    .callout {
+      border-left: 3px solid var(--mock);
+      background: #fefce8;
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 0.875rem;
+    }
+    .callout strong { color: var(--mock); }
+
+    /* ── Test badge grid ──────────────────────────────────────────────────── */
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin: 16px 0;
+    }
+    .test-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 0.82rem;
+    }
+    .test-card .tc-file { font-family: monospace; font-weight: 600; margin-bottom: 2px; }
+    .test-card .tc-count { font-size: 1.5rem; font-weight: 700; color: #16a34a; }
+    .test-card .tc-desc  { color: var(--muted); font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <p class="header-label">Technical Reference</p>
+    <h1>Quill Architecture</h1>
+    <p class="header-tagline">A personal historian — Telegram capture · AI synthesis · PDF delivery</p>
+  </header>
+
+  <!-- ── Table of contents ──────────────────────────────────────────────── -->
+  <nav class="toc">
+    <p class="toc-title">Contents</p>
+    <ol>
+      <li><a href="#pipeline">Pipeline Overview</a></li>
+      <li><a href="#modules">Module Reference</a></li>
+      <li><a href="#lifecycle">File Lifecycle</a></li>
+      <li><a href="#services">External Services</a></li>
+      <li><a href="#mock">Mock System</a></li>
+      <li><a href="#template">Template System</a></li>
+      <li><a href="#scheduler">Scheduling</a></li>
+      <li><a href="#testing">Testing Strategy</a></li>
+    </ol>
+  </nav>
+
+  <!-- ── Pipeline ───────────────────────────────────────────────────────── -->
+  <section id="pipeline">
+    <h2>Pipeline Overview</h2>
+    <p>
+      Quill is a linear pipeline of seven async Python modules.
+      Each stage has a clean public API and can be invoked standalone.
+      <code>processor.py</code> chains them together and runs them on a daily schedule.
+    </p>
+
+    <div class="pipeline">
+
+      <div class="p-step p-capture">
+        <div class="p-step-name">You → Telegram</div>
+        <div class="p-step-desc">Send voice notes, photos, and text messages throughout your day</div>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">webhook POST or polling</span></div>
+
+      <div class="p-step p-capture">
+        <div class="p-step-name">bot.py</div>
+        <div class="p-step-desc">Receives Telegram updates · saves .ogg / .jpg / .txt to inbox/ · replies "Got it. 🖊"</div>
+        <span class="p-step-service">python-telegram-bot 20.7</span>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">YYYY-MM-DD_HHMMSS_{kind}.{ext}</span></div>
+
+      <div class="p-step p-orch" style="margin-bottom:8px">
+        <div class="p-step-name">processor.py — scheduled trigger</div>
+        <div class="p-step-desc">Wakes at PROCESSING_HOUR · checks if BIOGRAPHY_PERIOD_DAYS have elapsed · fires the pipeline</div>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">for each unprocessed media file</span></div>
+
+      <div class="p-parallel" style="margin-bottom: 0">
+        <div class="p-step p-process">
+          <div class="p-step-name">transcribe.py</div>
+          <div class="p-step-desc">Transcribes voice notes<br>.ogg → .txt sidecar</div>
+          <span class="p-step-service">OpenAI Whisper</span>
+        </div>
+        <div class="p-step p-process">
+          <div class="p-step-name">describe.py</div>
+          <div class="p-step-desc">Captions photos<br>.jpg / .png → .txt sidecar</div>
+          <span class="p-step-service">GPT-4o Vision</span>
+        </div>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">all .txt files in the period</span></div>
+
+      <div class="p-step p-ai">
+        <div class="p-step-name">synthesize.py</div>
+        <div class="p-step-desc">Collects entries · builds a Bloomsbury-style biography prompt · returns inner HTML</div>
+        <span class="p-step-service">Claude Opus (claude-opus-4-7)</span>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">biography inner HTML</span></div>
+
+      <div class="p-step p-render">
+        <div class="p-step-name">render.py</div>
+        <div class="p-step-desc">Injects HTML into bloomsbury.html · saves full HTML page · renders print-ready A4 PDF</div>
+        <span class="p-step-service">Playwright / Chromium</span>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">A4 PDF · biographies/YYYY-MM-DD.pdf</span></div>
+
+      <div class="p-step p-deliver">
+        <div class="p-step-name">deliver.py</div>
+        <div class="p-step-desc">Builds a styled HTML email · attaches the PDF · sends via SMTP_SSL port 465</div>
+        <span class="p-step-service">Gmail SMTP</span>
+      </div>
+
+      <div class="p-arrow"><span class="p-arrow-label">📬 your inbox</span></div>
+
+      <div class="p-step p-orch">
+        <div class="p-step-name">archive_inbox()</div>
+        <div class="p-step-desc">Moves all inbox files dated ≤ period_end to processed/ · saves state.json</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Modules ────────────────────────────────────────────────────────── -->
+  <section id="modules">
+    <h2>Module Reference</h2>
+
+    <div class="module-card p-capture" style="border-left-width:3px">
+      <h3>bot.py — Telegram Gateway</h3>
+      <p class="module-tagline">Receives messages and persists raw content to inbox/</p>
+      <p><strong>Modes:</strong> Webhook (requires public HTTPS URL, uses bot token as path for security) or Polling (fallback when <code>TELEGRAM_WEBHOOK_URL</code> is unset — works on any machine).</p>
+      <table>
+        <tr><th>Message type</th><th>Saved as</th></tr>
+        <tr><td>Text</td><td><code>YYYY-MM-DD_HHMMSS_note.txt</code></td></tr>
+        <tr><td>Voice</td><td><code>YYYY-MM-DD_HHMMSS_voice.ogg</code></td></tr>
+        <tr><td>Photo</td><td><code>YYYY-MM-DD_HHMMSS_photo.jpg</code> (highest-resolution <code>photo[-1]</code>)</td></tr>
+      </table>
+    </div>
+
+    <div class="module-card p-process" style="border-left-width:3px">
+      <h3>transcribe.py — Audio Transcription</h3>
+      <p class="module-tagline">OpenAI Whisper · .ogg → .txt</p>
+      <pre><code>await transcribe(audio_path: Path) -&gt; str
+await transcribe_and_save(audio_path: Path) -&gt; Path</code></pre>
+      <p>Reads the file asynchronously, wraps bytes in <code>io.BytesIO</code> with <code>.name</code> set so the SDK infers the audio format, and calls <code>audio.transcriptions.create(model="whisper-1")</code>.</p>
+    </div>
+
+    <div class="module-card p-process" style="border-left-width:3px">
+      <h3>describe.py — Image Captioning</h3>
+      <p class="module-tagline">GPT-4o Vision · .jpg/.png → .txt</p>
+      <pre><code>await describe(image_path: Path) -&gt; str
+await describe_and_save(image_path: Path) -&gt; Path</code></pre>
+      <p>Base64-encodes the image, sends it as a data URI with <code>"detail": "high"</code>. Prompt: <em>"Describe this image in one or two sentences as it might appear in a personal biography. Focus on atmosphere, setting, and any human elements."</em></p>
+    </div>
+
+    <div class="module-card p-ai" style="border-left-width:3px">
+      <h3>synthesize.py — Biography Synthesis</h3>
+      <p class="module-tagline">Claude Opus · .txt × N → biography HTML</p>
+      <pre><code>await collect_entries(since, until, inbox_dir) -&gt; list[Entry]
+await synthesize(entries, period_start, period_end) -&gt; str
+await synthesize_and_save(period_start, period_end, ...) -&gt; tuple[Path, int]</code></pre>
+      <p><code>collect_entries</code> globs <code>inbox/*.txt</code>, parses <code>YYYY-MM-DD_HHMMSS_kind.txt</code> stems, filters by date, and returns an ascending-sorted <code>list[Entry]</code>.</p>
+      <p>The Claude system prompt instructs it to write in a Bloomsbury literary voice and emit specific HTML classes (<code>.moment</code>, <code>.divider</code>, <code>blockquote</code>) that slot directly into <code>bloomsbury.html</code>.</p>
+      <p>Output: <code>biographies/YYYY-MM-DD_content.html</code> (inner HTML only)</p>
+    </div>
+
+    <div class="module-card p-render" style="border-left-width:3px">
+      <h3>render.py — PDF Rendering</h3>
+      <p class="module-tagline">Playwright · HTML → A4 PDF + complete HTML page</p>
+      <pre><code>await render(content_html, period_start, period_end, entry_count, biographies_dir)
+    -&gt; tuple[Path, Path]   # (html_path, pdf_path)
+await render_from_file(content_path, ...) -&gt; tuple[Path, Path]</code></pre>
+      <p><code>_fill_template()</code> performs plain <code>str.replace</code> on <code>{{ token }}</code> placeholders — no Jinja2 dependency. Playwright loads the HTML via <code>file://</code> so relative <code>../fonts/</code> paths resolve, then calls:</p>
+      <pre><code>page.pdf(format="A4", print_background=True, prefer_css_page_size=True)</code></pre>
+      <p><code>prefer_css_page_size=True</code> delegates geometry entirely to <code>@page { size: A4; margin: 28mm 25mm 30mm 30mm }</code> in the stylesheet. The HTML also renders at A4 in a browser via a <code>@media screen</code> block.</p>
+    </div>
+
+    <div class="module-card p-deliver" style="border-left-width:3px">
+      <h3>deliver.py — Email Delivery</h3>
+      <p class="module-tagline">Gmail SMTP · PDF → email</p>
+      <pre><code>await deliver(pdf_path, period_start, period_end, entry_count) -&gt; None</code></pre>
+      <p>Uses <code>smtplib.SMTP_SSL</code> on port 465 (immediate TLS, not STARTTLS) wrapped in <code>asyncio.to_thread</code> to keep the event loop unblocked. Validates all three Gmail credentials before attempting a connection in real mode.</p>
+    </div>
+
+    <div class="module-card p-orch" style="border-left-width:3px">
+      <h3>processor.py — Orchestrator &amp; Scheduler</h3>
+      <p class="module-tagline">Chains all stages · runs daily at PROCESSING_HOUR</p>
+      <pre><code>async def run_pipeline(period_start, period_end, deliver_email, ...) -&gt; tuple[Path, Path]
+async def start_scheduler() -&gt; None   # blocks forever</code></pre>
+      <p><strong>run_pipeline sequence:</strong> process_inbox → synthesize_and_save → render_from_file → deliver → archive_inbox → save_state</p>
+      <p><strong>Scheduler:</strong> Sleeps until the next <code>PROCESSING_HOUR:00</code>. On wake, loads <code>logs/state.json</code> and skips if fewer than <code>BIOGRAPHY_PERIOD_DAYS</code> have elapsed since <code>last_run_date</code>.</p>
+    </div>
+
+  </section>
+
+  <!-- ── File lifecycle ─────────────────────────────────────────────────── -->
+  <section id="lifecycle">
+    <h2>File Lifecycle</h2>
+
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-agent">bot.py</div>
+        <div class="lc-files">
+          <span class="lc-file new">inbox/2024-05-10_143022_voice.ogg</span>
+          <span class="lc-file new">inbox/2024-05-10_150000_photo.jpg</span>
+          <span class="lc-file new">inbox/2024-05-10_162200_note.txt</span>
+        </div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-agent">process_inbox()</div>
+        <div class="lc-files">
+          <span class="lc-file new">inbox/2024-05-10_143022_voice.txt &nbsp;← transcript</span>
+          <span class="lc-file new">inbox/2024-05-10_150000_photo.txt &nbsp;← caption</span>
+        </div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-agent">synthesize.py</div>
+        <div class="lc-files">
+          <span class="lc-file new">biographies/2024-05-14_content.html &nbsp;← inner HTML</span>
+        </div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-agent">render.py</div>
+        <div class="lc-files">
+          <span class="lc-file new">biographies/2024-05-14.html &nbsp;← complete A4 page</span>
+          <span class="lc-file new">biographies/2024-05-14.pdf &nbsp;&nbsp;← print-ready PDF</span>
+        </div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-agent">deliver.py</div>
+        <div class="lc-files">
+          <span class="lc-file out">📬 email → BIOGRAPHY_RECIPIENT_EMAIL</span>
+        </div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-agent">archive_inbox()</div>
+        <div class="lc-files">
+          <span class="lc-file move">processed/2024-05-10_143022_voice.ogg</span>
+          <span class="lc-file move">processed/2024-05-10_143022_voice.txt</span>
+          <span class="lc-file move">processed/2024-05-10_150000_photo.jpg</span>
+          <span class="lc-file move">processed/2024-05-10_150000_photo.txt</span>
+          <span class="lc-file move">processed/2024-05-10_162200_note.txt</span>
+        </div>
+      </div>
+    </div>
+
+    <p style="margin-top:8px; font-size:0.82rem; color: var(--muted)">
+      <span style="border-left:2px solid #16a34a; padding-left:6px">created</span> &nbsp;
+      <span style="border-left:2px solid #d97706; padding-left:6px">moved</span> &nbsp;
+      <span style="border-left:2px solid var(--deliver); padding-left:6px">delivered externally</span>
+    </p>
+  </section>
+
+  <!-- ── External services ──────────────────────────────────────────────── -->
+  <section id="services">
+    <h2>External Services</h2>
+    <table>
+      <tr>
+        <th>Service</th><th>Module</th><th>Purpose</th><th>Model / endpoint</th><th>Mock?</th>
+      </tr>
+      <tr>
+        <td>Telegram Bot API</td><td><code>bot.py</code></td>
+        <td>Receive messages, send replies</td><td>Bot API v6</td>
+        <td>Not mocked (must run on machine with internet)</td>
+      </tr>
+      <tr>
+        <td>OpenAI Whisper</td><td><code>transcribe.py</code></td>
+        <td>Speech-to-text</td><td><code>whisper-1</code></td>
+        <td>✓ <code>MockOpenAI</code></td>
+      </tr>
+      <tr>
+        <td>OpenAI GPT-4o Vision</td><td><code>describe.py</code></td>
+        <td>Image captioning</td><td><code>gpt-4o</code></td>
+        <td>✓ <code>MockOpenAI</code></td>
+      </tr>
+      <tr>
+        <td>Anthropic Claude</td><td><code>synthesize.py</code></td>
+        <td>Biography synthesis</td><td><code>claude-opus-4-7</code></td>
+        <td>✓ <code>MockAnthropic</code></td>
+      </tr>
+      <tr>
+        <td>Gmail SMTP</td><td><code>deliver.py</code></td>
+        <td>Email delivery</td><td>smtp.gmail.com:465 (SSL)</td>
+        <td>✓ logs intent, no socket</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- ── Mock system ────────────────────────────────────────────────────── -->
+  <section id="mock">
+    <h2>Mock System</h2>
+    <div class="callout">
+      <strong>QUILL_MOCK=true</strong> — Set this in <code>.env</code> to replace every external API call with a realistic simulation. No API keys required. The entire pipeline runs end-to-end.
+    </div>
+    <p><code>mocks.py</code> provides drop-in clients whose response types mirror the real SDKs field-for-field:</p>
+    <table>
+      <tr><th>Mock class</th><th>Replaces</th><th>Key response fields</th><th>Latency</th></tr>
+      <tr>
+        <td><code>MockOpenAI</code></td>
+        <td><code>openai.AsyncOpenAI</code></td>
+        <td><code>.audio.transcriptions</code>, <code>.chat.completions</code></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><code>_Transcription</code></td>
+        <td><code>openai.types.audio.Transcription</code></td>
+        <td><code>.text</code>, <code>.language</code>, <code>.duration</code>, <code>.segments</code></td>
+        <td>150 ms</td>
+      </tr>
+      <tr>
+        <td><code>_ChatCompletion</code></td>
+        <td><code>openai.types.chat.ChatCompletion</code></td>
+        <td><code>.choices[0].message.content</code>, <code>.model</code>, <code>.usage</code></td>
+        <td>200 ms</td>
+      </tr>
+      <tr>
+        <td><code>MockAnthropic</code></td>
+        <td><code>anthropic.AsyncAnthropic</code></td>
+        <td><code>.messages</code></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><code>_AnthropicMessage</code></td>
+        <td><code>anthropic.types.Message</code></td>
+        <td><code>.content[0].text</code>, <code>.stop_reason</code>, <code>.usage</code></td>
+        <td>300 ms</td>
+      </tr>
+    </table>
+    <p>Each module checks the module-level <code>MOCK</code> constant in its <code>_client()</code> factory. Setting <code>QUILL_MOCK=true</code> before any import is enough — no code changes required.</p>
+  </section>
+
+  <!-- ── Template system ────────────────────────────────────────────────── -->
+  <section id="template">
+    <h2>Template System</h2>
+    <p><code>templates/bloomsbury.html</code> is a self-contained HTML document with two roles:</p>
+    <ul style="margin: 8px 0 16px 20px; line-height: 2;">
+      <li><strong>PDF master</strong> — Playwright loads it via <code>file://</code> and renders to A4 via <code>@page { size: A4; margin: 28mm 25mm 30mm 30mm }</code>. Page numbers use CSS <code>counter(page)</code> in <code>@bottom-center</code>.</li>
+      <li><strong>Browser preview</strong> — <code>@media screen</code> constrains <code>&lt;body&gt;</code> to <code>210mm × 297mm</code> with a warm grey background and paper shadow.</li>
+    </ul>
+    <h3>Template tokens</h3>
+    <table>
+      <tr><th>Token</th><th>Example value</th></tr>
+      <tr><td><code>{{ title }}</code></td><td>Lakshmanan Meiyappan — May 2024</td></tr>
+      <tr><td><code>{{ user_name }}</code></td><td>Lakshmanan Meiyappan</td></tr>
+      <tr><td><code>{{ subtitle }}</code></td><td>A chronicle of Lakshmanan's life, 1 May to 14 May 2024</td></tr>
+      <tr><td><code>{{ period_start }}</code></td><td>1 May 2024</td></tr>
+      <tr><td><code>{{ period_end }}</code></td><td>14 May 2024</td></tr>
+      <tr><td><code>{{ content }}</code></td><td><em>inner HTML from Claude</em></td></tr>
+      <tr><td><code>{{ generated_date }}</code></td><td>24 May 2024</td></tr>
+      <tr><td><code>{{ entry_count }}</code></td><td>23</td></tr>
+    </table>
+    <h3>HTML classes emitted by Claude</h3>
+    <table>
+      <tr><th>Class</th><th>Element</th><th>Purpose</th></tr>
+      <tr><td><code>.moment</code></td><td><code>&lt;div&gt;</code></td><td>Isolated scene card with coloured left border, avoids page breaks</td></tr>
+      <tr><td><code>.moment-date</code></td><td><code>&lt;p&gt;</code></td><td>Small-caps date label inside a moment card</td></tr>
+      <tr><td><code>.divider</code></td><td><code>&lt;div&gt;</code></td><td>Centred ✦ section separator</td></tr>
+      <tr><td><code>.colophon</code></td><td><code>&lt;p&gt;</code></td><td>Footer attribution with generation date and entry count</td></tr>
+      <tr><td><code>.cover</code></td><td><code>&lt;div&gt;</code></td><td>Full-page cover with <code>page-break-after: always</code></td></tr>
+    </table>
+  </section>
+
+  <!-- ── Scheduling ─────────────────────────────────────────────────────── -->
+  <section id="scheduler">
+    <h2>Scheduling</h2>
+    <p><code>processor.start_scheduler()</code> runs an infinite async loop:</p>
+    <pre><code>while True:
+    sleep until next PROCESSING_HOUR:00
+    load logs/state.json
+    if (today − last_run_date).days &lt; BIOGRAPHY_PERIOD_DAYS:
+        skip (biography not yet due)
+    else:
+        run_pipeline(today − BIOGRAPHY_PERIOD_DAYS, today)
+        save state</code></pre>
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Effect</th></tr>
+      <tr><td><code>PROCESSING_HOUR</code></td><td>2</td><td>Hour of day (0–23) the scheduler fires</td></tr>
+      <tr><td><code>BIOGRAPHY_PERIOD_DAYS</code></td><td>14</td><td>Minimum days between biographies</td></tr>
+    </table>
+    <p>Pipeline failures are caught and logged without crashing the scheduler — the next run will retry. State is persisted to <code>logs/state.json</code> after every successful pipeline run.</p>
+    <h3>Running at startup on macOS</h3>
+    <pre><code># Add to crontab (crontab -e):
+0 2 * * * /path/to/quill/.venv/bin/python /path/to/quill/cli.py start</code></pre>
+  </section>
+
+  <!-- ── Testing ────────────────────────────────────────────────────────── -->
+  <section id="testing">
+    <h2>Testing Strategy</h2>
+    <p>
+      51 tests across 6 modules. <code>conftest.py</code> sets <code>QUILL_MOCK=true</code>
+      before any source import — no real API calls, network connections, or SMTP sessions.
+      Playwright is replaced by a fixture that writes <code>b"%PDF-1.4 mock"</code> to disk.
+    </p>
+
+    <div class="test-grid">
+      <div class="test-card">
+        <div class="tc-file">test_transcribe.py</div>
+        <div class="tc-count">4</div>
+        <div class="tc-desc">Return type · file creation · content · idempotency</div>
+      </div>
+      <div class="test-card">
+        <div class="tc-file">test_describe.py</div>
+        <div class="tc-count">5</div>
+        <div class="tc-desc">Return type · file creation · PNG and JPEG extensions</div>
+      </div>
+      <div class="test-card">
+        <div class="tc-file">test_synthesize.py</div>
+        <div class="tc-count">11</div>
+        <div class="tc-desc">Entry parsing · date filtering · empty / unknown kinds · synthesis · save</div>
+      </div>
+      <div class="test-card">
+        <div class="tc-file">test_render.py</div>
+        <div class="tc-count">9</div>
+        <div class="tc-desc">Template substitution · HTML validity · file creation · PDF output</div>
+      </div>
+      <div class="test-card">
+        <div class="tc-file">test_deliver.py</div>
+        <div class="tc-count">7</div>
+        <div class="tc-desc">Mock path · SMTP not called · credential validation · message structure</div>
+      </div>
+      <div class="test-card">
+        <div class="tc-file">test_processor.py</div>
+        <div class="tc-count">15</div>
+        <div class="tc-desc">Inbox processing · archiving · scheduler timing · state persistence · end-to-end pipeline</div>
+      </div>
+    </div>
+
+    <pre><code>pip install -r requirements-dev.txt
+pytest              # run all 51 tests
+pytest tests/test_processor.py -v   # run one module</code></pre>
+  </section>
+
+</body>
+</html>

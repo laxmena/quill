@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use or derive from Quill, please cite it as below."
+title: "Quill — Personal Historian"
+abstract: >
+  Quill is an open-source personal historian that captures life through
+  Telegram (voice notes, photos, text) and synthesises a typeset biography
+  PDF on a configurable schedule using LLMs (Claude, Whisper, GPT-4o Vision).
+  Built entirely on a phone during dead time — no laptop, bad internet.
+authors:
+  - family-names: Meiyappan
+    given-names: Lakshmanan
+    orcid: ""
+repository-code: "https://github.com/laxmena/quill"
+license: MIT
+version: "1.0.0"
+date-released: "2026-05-25"
+keywords:
+  - personal-biography
+  - telegram-bot
+  - llm
+  - life-logging
+  - pdf-generation
+  - claude
+  - openai-whisper
