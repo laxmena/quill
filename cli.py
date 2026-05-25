@@ -147,6 +147,7 @@ def set_commands():
         console.print("[red]TELEGRAM_BOT_TOKEN must be set in .env[/red]")
         raise SystemExit(1)
     commands = [
+        {"command": "start",       "description": "Welcome — how Quill works"},
         {"command": "preview",     "description": "Read a draft chapter right now"},
         {"command": "status",      "description": "See what's in your chronicle"},
         {"command": "delete-last", "description": "Remove the last thing you sent"},
