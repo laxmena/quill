@@ -169,6 +169,25 @@ async def test_help_mentions_privacy(update):
     assert "Privacy" in reply or "OpenAI" in reply
 
 
+# ── /status double-count regression ──────────────────────────────────────────
+
+async def test_status_no_double_count_for_transcribed_voice(update, tmp_path, monkeypatch):
+    """After transcription inbox has .ogg + .txt; status must count it as 1 voice note."""
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    monkeypatch.setattr(bot, "INBOX_DIR", inbox)
+    monkeypatch.setattr(bot, "LOGS_DIR", tmp_path)
+    # Simulate a transcribed voice note: both files present with same stem
+    (inbox / "2024-05-10_143022_abc123_voice.ogg").write_bytes(b"audio")
+    (inbox / "2024-05-10_143022_abc123_voice.txt").write_text("transcript")
+
+    await bot.handle_status(update, MagicMock())
+
+    reply = update.message.reply_text.call_args[0][0]
+    assert "2 voice" not in reply   # must not double-count
+    assert "1 voice" in reply
+
+
 # ── /delete-last ──────────────────────────────────────────────────────────────
 
 async def test_delete_last_removes_most_recent(update, tmp_path, monkeypatch):

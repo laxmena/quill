@@ -33,9 +33,11 @@ async def transcribe(audio_path: Path) -> str:
 
     client = _client()
 
+    model = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
+
     async def _call():
         buf.seek(0)  # reset for each retry attempt
-        return await client.audio.transcriptions.create(file=buf, model="whisper-1")
+        return await client.audio.transcriptions.create(file=buf, model=model)
 
     result = await with_retry(_call, attempts=3, base_delay=2.0, timeout=30.0,
                               label="whisper")

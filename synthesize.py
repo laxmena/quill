@@ -174,9 +174,10 @@ async def synthesize(
     prompt = _build_prompt(entries, period_start, period_end, prior_text=prior_text)
     system = _SYSTEM.format(name=USER_NAME.split()[0])
 
+    model = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
     msg = await with_retry(
         lambda: client.messages.create(
-            model="claude-opus-4-7",
+            model=model,
             max_tokens=4096,
             system=system,
             messages=[{"role": "user", "content": prompt}],
